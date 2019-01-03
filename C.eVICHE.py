@@ -10,24 +10,37 @@ Created on Tue Nov 20 12:35:08 2018
 ##C.elegan Visual Implementation in Computer Heuristic Experiments##
 
 import deeplabcut
+import os, yaml
+from pathlib import Path
 
+##once#create the project, set working directory for videos, and find videos
+deeplabcut.create_new_project('CeVICHE','Rachel', ['/home/mpcr/Desktop/Rachel/CeVICHE/avi/001/ceviche-001.avi', '/home/mpcr/Desktop/Rachel/CeVICHE/avi/002/ceviche-002.avi', '/home/mpcr/Desktop/Rachel/CeVICHE/avi/003/ceviche-003.avi' ], working_directory='/home/mpcr/Desktop/Rachel/CeVICHE', copy_videos=False) 
 
-#create the project, set working directory for videos, and find videos
-deeplabcut.create_new_project('CeVICHE','Rachel_StClair', ['/home/mpcr/Desktop/Rachel/CeVICHE/VTS_01_1.VOB'], working_directory='/home/mpcr/Desktop/Rachel/CeVICHE',copy_videos=False)
-#find more videos
-deeplabcut.add_new_videos(`Full path of the project configuration file*',[`full path of video 4', `full path of video 5'],copy_videos=True/False)
-#data selection
-deeplabcut.extract_frames(config_path,‘automatic/manual’,‘uniform/kmeans’, crop=True, checkcropping=True)
-#extract data frames by hand
-deeplabcut.extract_frames(config_path,‘manual’)
+#specify path to config.yaml
+####change yaml for the project
+path_config_file = '/home/mpcr/Desktop/Rachel/CeVICHE/CeVICHE-Rachel-2018-12-05/config.yaml'
+
+##opt# more videos
+deeplabcut.add_new_videos(path_config_file, ['full path of video 4', 'full path of video 5'], copy_videos=False)
+
+#data selection (auto)
+deeplabcut.extract_frames(path_config_file,'automatic','uniform', crop=False, checkcropping=False)
+
+##opt#extract data frames by hand
+deeplabcut.extract_frames(config_path,'manual')
+
 #label frames
-deeplabcut.label_frames(config_path, Screens=1)
-#check annotated frames
-deeplabcut.check_labels(config_path)
+deeplabcut.label_frames(path_config_file)
+
+##opt#check annotated frames
+deeplabcut.check_labels(path_config_file)
+
 #create training dataset
-deeplabcut.create_training_dataset(config_path,num_shuffles=1)
+deeplabcut.create_training_dataset(path_config_file,num_shuffles=1)
+
 #train the network --> additional parameters
-deeplabcut.train_network(config_path,shuffle=1)
+deeplabcut.train_network(path_config_file, shuffle=1, trainingsetindex=0, gputouse=390.87, max_snapshots_to_keep=5, autotune=False, displayiters=None, saveiters=None)
+
 #evaluate the trained network
 deeplabcut.evaluate_network(config_path,shuffle=[1], plotting=True)
 #analyze new video
