@@ -1,0 +1,22 @@
+###CyclePsych###
+##Instance GAN##
+#Jan 16, 2019#
+#https://github.com/sangwoomo/instagan#
+
+git clone https://github.com/sangwoomo/instagan
+pip3 install -r requirements.txt
+cd instagan/
+
+#!!!!!!open up new terminal and type visdom and click on link#
+
+#code to move data and insert in ./datasets
+git clone https://github.com/bearpaw/clothing-co-parsing ./datasets/clothing-co-parsing
+
+#generate two-domain datasets#
+python3 ./datasets/generate_ccp_dataset.py --save_root ./datasets/jeans2skirt_ccp --cat1 jeans --cat2 skirt
+
+#train model#
+python3 train.py --dataroot ./datasets/jeans2skirt_ccp --model insta_gan --name jeans2skirt_ccp_instagan --loadSizeH 330 --loadSizeW 220 --fineSizeH 300 --fineSizeW 200 --niter 400 --niter_decay 200
+
+#test model#
+python3 test.py --dataroot ./datasets/jeans2skirt_ccp --model insta_gan --name jeans2skirt_ccp_instagan --loadSizeH 300 --loadSizeW 200 --fineSizeH 300 --fineSizeW 200
