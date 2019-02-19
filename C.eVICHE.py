@@ -18,7 +18,7 @@ from glob import glob
 #vid = '/home/whale/Desktop/Rachel/CeVICHE/10-26-worms/avi/001/10-26-worms-001.avi'
 
 ##
-os.chdir('/home/whale/Desktop/Rachel/CeVICHE/')
+os.chdir('/home/whale/Desktop/Rachel/CeVICHE/train/')
 names = glob('**/*/*.avi', recursive=True)
 
 def get_frames(vid):
@@ -26,18 +26,26 @@ def get_frames(vid):
   ret, frame = cap.read()
   return frame
 
-if len(names) == 166:
-  del(names[113])
-else:
-  pass
+def clean(ind, maxlen):
+  if len(names) == maxlen:
+    del(names[ind])
+  else:
+    pass
 
-def scrape(names):
+def scrape(names, label_file):
   data = np.zeros([len(names), 224, 256, 1])
   for idx, vid in enumerate(names):
     frames = get_frames(vid)
     frames = frames.mean(axis=-1, keepdims=1)
     frames = np.resize(frames, (224, 256, 1))
     data[idx, ...] = frames
-  return data
+    labels = np.genfromtxt(label_file, delimiter=',', missing_values='-', skip_header=1, filling_values=0, usecols=range(0,5))
+    labels = labels[:, 1:]
+  return data, labels
 
-data = scrape(names)
+###run###
+x, y = scrape(names, '/home/whale/Desktop/Rachel/CeVICHE/Time2Seize.csv')
+###
+
+x_mean = np.mean(x, 0)
+x -= x_mean
