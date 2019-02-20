@@ -1,82 +1,97 @@
-###pytorch Conv###
-##https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
+###Vanilla_ConvNet_Torch
 
 
-import numpy as np
+
 import torch
-from torch import nn
-from torch import optim
+import torch.nn as nn
 import torch.nn.functional as F
-from torchvision import datasets, transforms, models
-import torch.optim as optim
-import torch.utils.data as utils
+import torchvision.models as models
+
+
+device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
+
+# Hyper parameters
+num_epochs = 5
+num_classes = 10
+batch_size = 100
+learning_rate = 0.001
+
+#data
+train_dataset =
+test_dataset =
+
+train_loader = torch.utils.data.DataLoader(dataset=train_dataset, batch_size=batch_size,shuffle=True)
+test_loader = torch.utils.data.DataLoader(dataset=test_dataset,batch_size=batch_size,shuffle=False)
+
+
+class ConvNet(nn.Module):
+    def __init__(self, num_classes=10):
+        super(ConvNet, self).__init__()
+        self.layer1 = nn.Sequential(
+            nn.Conv2d(1, 16, kernel_size=5, stride=1, padding=2),
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2))
+        self.layer2 = nn.Sequential(
+            nn.Conv2d(16, 32, kernel_size=5, stride=1, padding=2),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2))
+        self.fc = nn.Linear(7*7*32, num_classes)
+
+    def forward(self, x):
+        out = self.layer1(x)
+        out = self.layer2(out)
+        out = out.reshape(out.size(0), -1)
+        out = self.fc(out)
 
 
 
-##Data
-x =
-y =
-
-tensor_x = torch.stack([torch.Tensor(i) for i in x])
-tensor_y = torch.stack([torch.Tensor(i) for i in y])
-
-trainset = utils.TensorDataset(tensor_x,tensor_y)
-testset = utils.TensorDataset(tensor_x,tensor_y)
-
-
-trainloader = utils.DataLoader(trainset, batch_size=4, shuffle=True, num_workers=2)
-testloader = utils.DataLoader(testset, batch_size=4, shuffle=False, num_workers=2)
-
-classes = ('seizing', 'not-seizing')
 
 
 
-##GPU Enable
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-net.to(device)
-inputs, labels = inputs.to(device), labels.to(device)
 
-##Model
-net = DenseNet3D()
+        return out
 
 
-#Hyperparameters
+model = ConvNet(num_classes).to(device)
+
+# Loss and optimizer
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam([var1, var2], lr = 0.0001)
-epochs = 2
+optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
-##Train
-for epoch in range(epochs):
-    running_loss = 0.0
-    for i, data in enumerate(trainloader, 0):
-        inputs, labels = data
-        optimizer.zero_grad() # zero the parameter gradients
-        outputs = net(inputs) # forward + backward + optimize
+# Train the model
+total_step = len(train_loader)
+for epoch in range(num_epochs):
+    for i, (images, labels) in enumerate(train_loader):
+        images = images.to(device)
+        labels = labels.to(device)
+        # Forward pass
+        outputs = model(images)
         loss = criterion(outputs, labels)
+        # Backward and optimize
+        optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        running_loss += loss.item() # print statistics
-        if i % 2000 == 1999:    # print every 2000 mini-batches
-            print('[%d, %5d] loss: %.3f' %
-                  (epoch + 1, i + 1, running_loss / 2000))
-            running_loss = 0.0
-print('Finished Training')
+        if (i+1) % 100 == 0:
+            print ('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'
+                   .format(epoch+1, num_epochs, i+1, total_step, loss.item()))
 
-##Test
-dataiter = iter(testloader)
-images, labels = dataiter.next()
-outputs = net(images)
-_, predicted = torch.max(outputs, 1)
 
-correct = 0
-total = 0
+# Test the model
+model.eval()  # eval mode (batchnorm uses moving mean/variance instead of mini-batch mean/variance)
 with torch.no_grad():
-    for data in testloader:
-        images, labels = data
-        outputs = net(images)
+    correct = 0
+    total = 0
+    for images, labels in test_loader:
+        images = images.to(device)
+        labels = labels.to(device)
+        outputs = model(images)
         _, predicted = torch.max(outputs.data, 1)
         total += labels.size(0)
         correct += (predicted == labels).sum().item()
+    print('Test Accuracy of the model on the 10000 test images: {} %'.format(100 * correct / total))
 
-print('Accuracy of the network on the 10000 test images: %d %%' % (
-    100 * correct / total))
+
+# Save the model checkpoint
+torch.save(model.state_dict(), 'model.ckpt')
