@@ -8,7 +8,11 @@ os.environ["CUDA_VISIBLE_DEVICES"]="0";
 
 import keras
 from keras.applications import resnet50
+from keras.models import Sequential
 
+#hyperparameters
+epochs = 3
+batch_size = 1
 
 ##model
 model = Sequential()
@@ -19,21 +23,14 @@ model.compile(loss='categorical_crossentropy',
               metrics=['accuracy'])
 
 model = model()
-
+model.compile(loss='categorical_crossentropy',
+              optimizer='adam',
+              metrics=['accuracy'])
 ##train
-model.fit(x_train, y_train, epochs=5, batch_size=1)
+model.fit(x_train, y_train, epochs=epochs, batch_size=batch_size)
 
 ##evaluate
-loss_and_metrics = model.evaluate(x_test, y_test, batch_size=128)
+loss_and_metrics = model.evaluate(x_test, y_test, batch_size=batch_size)
 
 ##test
-classes = model.predict(x_test, batch_size
-
-
-
-
-
-
-
-
-=128)
+classes = model.predict(x_test, batch_size=batch_size)
