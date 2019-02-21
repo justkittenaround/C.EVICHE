@@ -20,6 +20,7 @@ os.environ["CUDA_VISIBLE_DEVICES"]="0";
 import keras
 from keras.applications import resnet50
 from keras.models import Sequential
+from keras.layers import ConvLSTM2D
 
 label_file = '/home/whale/Desktop/Rachel/CeVICHE/Time2Seize - Sheet1 (1).csv'
 vid = '10-26-worms/avi/015/10-26-worms-015.avi'
@@ -36,9 +37,9 @@ def get_frames(vid):
     all_frames = np.asarray([])
     while(True):
          ret, frame = cap.read()
-         BW = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
          idx = int(round(cap.get(1)))
-         frame = np.resize(frame, (idx, 224, 256, 1))
+         frame = frame.resize(256,256,3)
+         frame = np.resize(frame, (idx, 256, 256, 3))
          all_frames = np.concatenate([frame for idx in range(total_frames)], axis=0)
          if cv2.waitKey(1):
             break
@@ -62,7 +63,7 @@ def get_hot(vid):
     for idx, worm in enumerate(worms):
         duration = bubble - worm
         for n in range(duration):
-            hot = np.put(hot, [idx, n], 1)
+            hot = np.put(hot, [idx, n], 3)
     seize_time_frame = np.sum(hot,axis=0)
     if seizing_worms == 0:
         pass
@@ -73,9 +74,7 @@ def get_hot(vid):
 x, y = get_hot(vid)
 
 #transformations
-# rows = np.zeros(32, 256, 1)
-# x = np.concatenate([rows], axis=0)
-x =x.astype('float32')
+x = x.astype('float32')
 x_mean = np.mean(x, 0)
 x -= x_mean
 
@@ -84,18 +83,18 @@ x -= x_mean
 epochs = 3
 batch_size = 3
 optimizer = 'adam'
-activation = 'elu'
+act = 'tanh'
 loss = 'categorical_crossentropy'
-dilation_rate = (3, 3)
+dialation_rate = (3, 3)
 
 ##model
 model = Sequential()
-model.add(resnet50.ResNet50(weights='imagenet', include_top=False, input_shape='224,256,1'))
-model.add(keras.layers.ConvLSTM2D(512,(3,3), strides=(1, 1), dilation_rate=dialation_rate), activation=activation, recurrent_activation=activation, go_backwards=False)
-model.add(keras.layers.ConvLSTM2D(512,(3,3), strides=(1, 1), dilation_rate=dialation_rate), activation=activation, recurrent_activation=activation, go_backwards=True)
+model.add(resnet50.ResNet50(weights='imagenet', include_top=False, input_shape=(256,256,3)))
+model.add(keras.layers.ConvLSTM2D(512,(3,3), strides=(1, 1), dilation_rate=dialation_rate, go_backwards=False)
+model.add(keras.layers.ConvLSTM2D(512,(3,3), strides=(1, 1), dilation_rate=dialation_rate, go_backwards=True)
 # model.add(keras.layers.LSTM(2, activation=activation, recurrent_activation=activation)
 model.add(keras.layers.GlobalAveragePooling2D(data_format=None))
-model.add(Dense(1, activation=(keras.activations.softmax(x, axis=-1)))
+model.add(Dense(1, activation=(keras.activations.softmax(x, axis=-1))))
 
 model.compile(loss= loss,
               optimizer=‘adam’,
