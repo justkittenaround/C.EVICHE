@@ -21,56 +21,68 @@ import keras
 from keras.applications import resnet50
 from keras.models import Sequential
 
-vid = '/home/whale/Desktop/Rachel/CeVICHE/10-26 xtra tracks/019/10-26-worms-019.avi'
-vid ='/home/default/Downloads/DJI_0009 Shark cut 10.avi'
+label_file = '/home/whale/Desktop/Rachel/CeVICHE/Time2Seize - Sheet1 (1).csv'
+vid = '10-26-worms/avi/015/10-26-worms-015.avi'
+# vid ='/home/default/Downloads/DJI_0009 Shark cut 10.avi'
 
-##
-os.chdir('/home/default/C.EVICHE/train')
+os.chdir('/home/whale/Desktop/Rachel/CeVICHE/train')
 names = glob('**/*/*.avi', recursive=True)
-
-
+labels = np.genfromtxt(label_file, delimiter=',', skip_header=1, usecols=range(0,20))
 
 def get_frames(vid):
     cap = cv2.VideoCapture(vid)
     fps = int(cap.get(5))
     total_frames = int(round(cap.get(7)))
-    all = np.asarray([])
+    all_frames = np.asarray([])
     while(True):
          ret, frame = cap.read()
          BW = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
          idx = int(round(cap.get(1)))
          frame = np.resize(frame, (idx, 224, 256, 1))
-         all = np.concatenate([frame for idx in range(num)], axis=0)
-         if cv2.waitKey(1000):
+         all_frames = np.concatenate([frame for idx in range(total_frames)], axis=0)
+         if cv2.waitKey(1):
             break
     cap.release()
     cv2.destroyAllWindows()
-    print('fps=', fps, 'total_frames =', total_frames)
-    return all
+    return(all_frames, total_frames)
 
-def scrape(names, label_file):
-    data = np.zeros([len(names), 480, 224, 256, 1])
-    for idx, vid in enumerate(names):
-        frames = get_frames(vid)
-        frames = np.resize(frames, (224, 256, 1))
-        data[idx, ...] = frames
-        labels = np.genfromtxt(label_file, delimiter=',', skip_header=1, usecols=range(0,20))
-        labels = labels[:, 12:]
-    return data, labels
+def get_hot(vid):
+    get, cols = get_frames(vid)
+    row = names.index(vid)
+    bubble = int(labels[row, 13])
+    w1 = labels[row, 14]
+    w2 = labels[row, 15]
+    w3 = labels[row, 16]
+    w4 = labels[row, 17]
+    w5 = labels[row, 18]
+    w6 = labels[row, 19]
+    worms = [int(w1), int(w2), int(w3), int(w4), int(w5), int(w6)]
+    seizing_worms = int(labels[row, 12])
+    hot = np.zeros((6, cols))
+    for idx, worm in enumerate(worms):
+        duration = bubble - worm
+        for n in range(duration):
+            hot = np.put(hot, [idx, n], 1)
+    seize_time_frame = np.sum(hot,axis=0)
+    if seizing_worms == 0:
+        pass
+    if seizing_worms > 0:
+        seize_time_frame = seize_time_frame/seizing_worms
+    return(get, seize_time_frame)
 
-###run
-x, y = scrape(names, '/home/default/Downloads/Time2Seize - Sheet1 (1).csv')
+x, y = get_hot(vid)
 
 #transformations
-rows = np.zeros(32, 256, 1)
-x = np.concatenate([rows], axis=0)
+# rows = np.zeros(32, 256, 1)
+# x = np.concatenate([rows], axis=0)
+x =x.astype('float32')
 x_mean = np.mean(x, 0)
 x -= x_mean
 
 ##model
 #hyperparameters
 epochs = 3
-batch_size = 1
+batch_size = 3
 optimizer = 'adam'
 activation = 'elu'
 loss = 'categorical_crossentropy'
@@ -78,24 +90,22 @@ dilation_rate = (3, 3)
 
 ##model
 model = Sequential()
-model.add(resnet50.ResNet50(weights='imagenet', include_top=False, input_shape='256,256,1'))
+model.add(resnet50.ResNet50(weights='imagenet', include_top=False, input_shape='224,256,1'))
 model.add(keras.layers.ConvLSTM2D(512,(3,3), strides=(1, 1), dilation_rate=dialation_rate), activation=activation, recurrent_activation=activation, go_backwards=False)
 model.add(keras.layers.ConvLSTM2D(512,(3,3), strides=(1, 1), dilation_rate=dialation_rate), activation=activation, recurrent_activation=activation, go_backwards=True)
 # model.add(keras.layers.LSTM(2, activation=activation, recurrent_activation=activation)
 model.add(keras.layers.GlobalAveragePooling2D(data_format=None))
-model.add(Dense(2, activation=(keras.activations.softmax(x, axis=-1)))
+model.add(Dense(1, activation=(keras.activations.softmax(x, axis=-1)))
 
 model.compile(loss= loss,
               optimizer=‘adam’,
               metrics=['accuracy'])
 
-model = model()
-
 ##train
-model.fit(x, y, epochs=epochs, batch_size=batch_size)
+model.fit(x, y, epochs=epochs, batch_size=batch_size, shuffle=False)
 
 ##evaluate
-loss_and_metrics = model.evaluate(x_test, y_test, batch_size=batch_size)
+# score = model.evaluate(x_test, y_test, batch_size=batch_size)
 
 ##test
-classes = model.predict(x_test, batch_size=batch_size)
+# classes = model.predict(x_test, batch_size=batch_size)
