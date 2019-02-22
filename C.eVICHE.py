@@ -30,11 +30,10 @@ from keras.layers import Dense
 from keras import optimizers
 from keras import backend as K
 
-label_file = '/home/whale/Desktop/Rachel/CeVICHE/Time2Seize - Sheet1 (1).csv'
-vid = '10-26-worms/avi/015/10-26-worms-015.avi'
-# vid ='/home/default/Downloads/DJI_0009 Shark cut 10.avi'
+label_file = '/home/default/C.EVICHE/Time2Seize - Sheet1 (1).csv'
+vid = '/home/default/C.EVICHE/train/10-26-worms/avi/001/10-26-worms-001.avi'
 
-os.chdir('/home/whale/Desktop/Rachel/CeVICHE/train')
+os.chdir('/home/default/C.EVICHE/train')
 names = glob('**/*/*.avi', recursive=True)
 labels = np.genfromtxt(label_file, delimiter=',', skip_header=1, usecols=range(0,20))
 
@@ -98,25 +97,28 @@ loss = 'categorical_crossentropy'
 dialation_rate = (3, 3)
 
 ##model
-res = Sequential()
-res.add(ResNet50(weights='imagenet', include_top=False, input_shape=(256,256,3)))
-res.add(keras.layers.Embedding(4, 5))
-res.add(keras.layers.Flatten(data_format=None))
-# model.add(keras.layers.MaxPooling2D(pool_size=(2, 2), strides=None, padding='valid', data_format=None))
-model = Sequential()
-model.add(keras.layers.TimeDistributed(res))
-model.add(keras.layers.ConvLSTM2D(5,(1,1), strides=(1, 1), dilation_rate=dialation_rate, go_backwards=False))
-model.add(keras.layers.ConvLSTM2D(5,(1,1), strides=(1, 1), dilation_rate=dialation_rate, go_backwards=True))
-model.add(keras.layers.GlobalAveragePooling2D(data_format=None))
-model.add(keras.layers.Dense(1, activation='relu'))
-
-model.compile(loss= loss,
-              optimizer=keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False),
-              metrics=['accuracy'])
-
-##train
-
+def create_network():
+    res = Sequential()
+    res.add(ResNet50(weights='imagenet', include_top=False, input_shape=(256,256,3)))
+    res.add(keras.layers.Embedding(4, 5))
+    res.add(keras.layers.Flatten(data_format=None))
+    # model.add(keras.layers.MaxPooling2D(pool_size=(2, 2), strides=None, padding='valid', data_format=None))
+    model = Sequential()
+    model.add(keras.layers.TimeDistributed(res))
+    model.add(keras.layers.ConvLSTM2D(5,(1,1), strides=(1, 1), dilation_rate=dialation_rate, go_backwards=False))
+    model.add(keras.layers.ConvLSTM2D(5,(1,1), strides=(1, 1), dilation_rate=dialation_rate, go_backwards=True))
+    model.add(keras.layers.GlobalAveragePooling2D(data_format=None))
+    model.add(keras.layers.Dense(1, activation='sigmoid'))
+    model.compile(loss= loss,optimizer=keras.optimizers.Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=None, decay=0.0, amsgrad=False),metrics=['accuracy'])
+    return model
+network_model = create_network()
 model.fit(x, y, epochs=epochs, batch_size=batch_size, shuffle=False)
+
+
+x = np.zeros((618,256,256,3))
+y = np.zeros((618))
+
+
 
 ##evaluate
 # score = model.evaluate(x_test, y_test, batch_size=batch_size)
