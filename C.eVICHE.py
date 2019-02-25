@@ -5,6 +5,7 @@ import os
 from glob import glob
 import tensorflow as tf
 import keras
+from keras.models import load_model
 from keras.utils import multi_gpu_model
 from keras.applications.resnet50 import ResNet50
 from keras.models import Sequential
@@ -19,8 +20,8 @@ from keras import losses
 from keras import optimizers
 from keras import backend as K
 import skimage
-# os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID";
-# os.environ["CUDA_VISIBLE_DEVICES"]="0";
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID";
+os.environ["CUDA_VISIBLE_DEVICES"]="1";
 
 
 
@@ -39,6 +40,7 @@ def get_test():
     return(test_names)
 
 train_names, train_labels = get_train()
+first = train_names[0]
 # test_names = get_test()
 
 n = 2000
@@ -76,16 +78,18 @@ def get_hot(vid, names, labels):
     w5 = labels[row, 19]
     w6 = labels[row, -1]
     worms = [int(w1), int(w2), int(w3), int(w4), int(w5), int(w6)]
-    hot = np.zeros((6, total_frames))
+    hot = np.zeros((7, total_frames))
     for idx, worm in enumerate(worms):
         for i in range(bubble, worm):
             if i  in ind:
                 hot[idx, i] = 1
+                if hot[idx, i] ==1:
+                    hot[idx, 7] = 1
     hot = hot[:, ind]
     seize_time_frame = np.sum(hot,axis=0)
 
-    if seizing_worms > 0:
-        seize_time_frame = seize_time_frame/seizing_worms
+    # if seizing_worms > 0:
+    #     seize_time_frame = seize_time_frame/seizing_worms
     return(get, seize_time_frame)
 
 def trans(x):
@@ -94,15 +98,14 @@ def trans(x):
     x -= x_mean
     return(x)
 
-epochs = 1
-batch_size = 30
+epochs = 10
+batch_size = 23
 opt = 'adam'
 act = 'elu'
 soft = ''
 loss = 'mean_squared_error'
 dialation_rate = (1, 1)
 units = 100
-
 def create_network():
     res = Sequential()
     res.add(ResNet50(weights='imagenet', include_top=False, input_shape=(224,256,3)))
@@ -116,23 +119,32 @@ def create_network():
     res.compile(loss=loss,optimizer=opt)
     return(res)
 
-def run_it(train_vid):
+def run_it(train_vid, current):
     x_train, y_train = get_hot(train_vid, train_names, train_labels)
     x_train = trans(x_train)
     # x_test = get_frames(test_vid)
     # x_test = trans(x_test)
-    res = create_network()
-    final = res.fit(x_train, y_train, epochs=epochs, batch_size=batch_size, shuffle=False)
-    # score = res.evaluate(x_train, y_train, batch_size=batch_size)
+    if current == 0:
+        res = create_network()
+        final = res.fit(x_train, y_train, epochs=epochs, batch_size=batch_size, shuffle=True)
+        score = res.evaluate(x_train, y_train, batch_size=batch_size)
+    else:
+        res = load_model('/home/whale/Desktop/Rachel/CeVICHE/train/saved_res')
+        print("Loaded model from disk")
+        final = res.fit(x_train, y_train, epochs=epochs, batch_size=batch_size, shuffle=True)
+        score = res.evaluate(x_train, y_train, batch_size=batch_size)
+    res.save('saved_res')
+    del res
+    print("Saved model to disk")
     # final = res.predict(x_test, batch_size=batch_size)
     return(final)
 
 def train_loop():
     win = np.asarray([])
-    for train_vid in train_names:
-        final = run_it(train_vid)
+    for current, train_vid in enumerate(train_names):
+        final = run_it(train_vid, current)
         # win = np.concatenate([final], axis=0)
     return(win, score)
 
-win, score = train_loop()
+win, score, loop = train_loop()
 # res.save
