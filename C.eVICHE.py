@@ -1,6 +1,16 @@
 
+
+
+
+tensorboard --logdir=//home/whale/Desktop/Rachel/CeVICHE/train/logs
+
+
+
+
+
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
 import os
 from glob import glob
 import tensorflow as tf
@@ -20,6 +30,8 @@ from keras import losses
 from keras import optimizers
 from keras import backend as K
 import skimage
+from keras.callbacks import TensorBoard
+from time import time
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID";
 os.environ["CUDA_VISIBLE_DEVICES"]="1";
 
@@ -110,41 +122,55 @@ def create_network():
     res = Sequential()
     res.add(ResNet50(weights='imagenet', include_top=False, input_shape=(224,256,3)))
     res.add(keras.layers.GlobalAveragePooling2D(data_format=None))
-    # res.add(keras.layers.Reshape((batch_size, 2048, 1, 1, 1))
-    # res.add(keras.layers.ConvLSTM2D(64, (3,3), strides=(1, 1), dilation_rate=(1, 1), activation='tanh', recurrent_activation='hard_sigmoid', return_sequences=True, go_backwards=False)))
-    # res.add(keras.layers.ConvLSTM2D(64, (3,3), strides=(1, 1), dilation_rate=(1, 1), activation='tanh', recurrent_activation='hard_sigmoid', return_sequences=True, go_backwards=False)))
     res.add(keras.layers.Dense(1, activation='linear'))
-    # parallel_res = multi_gpu_model(res, gpus=2)
-    # parallel_res.compile(loss=loss,optimizer=opt)
     res.compile(loss=loss,optimizer=opt)
     return(res)
 
 def run_it(train_vid, current):
     x_train, y_train = get_hot(train_vid, train_names, train_labels)
     x_train = trans(x_train)
-    # x_test = get_frames(test_vid)
-    # x_test = trans(x_test)
     if current == 0:
         res = create_network()
-        final = res.fit(x_train, y_train, epochs=epochs, batch_size=batch_size, shuffle=True)
+        tensorboard = TensorBoard(log_dir="logs/{}".format(time()))
+        final = res.fit(x_train, y_train, epochs=epochs, batch_size=batch_size, shuffle=True, callbacks=[tensorboard])
         score = res.evaluate(x_train, y_train, batch_size=batch_size)
+        res.save('saved_res0.h5')
     else:
-        res = load_model('/home/whale/Desktop/Rachel/CeVICHE/train/saved_res')
+        past = current - 1
+        load_path = '/home/whale/Desktop/Rachel/CeVICHE/train/saved_res' +  str(past) + '.h5'
+        save_path = 'saved_res' + str(current) + '.h5'
+        del_path = '/home/whale/Desktop/Rachel/CeVICHE/train/saved_res' +  str(past) + '.h5'
+        res = load_model(load_path)
         print("Loaded model from disk")
-        final = res.fit(x_train, y_train, epochs=epochs, batch_size=batch_size, shuffle=True)
+        res.compile(loss=loss,optimizer=opt)
+        tensorboard = TensorBoard(log_dir="logs/{}".format(time()))
+        final = res.fit(x_train, y_train, epochs=epochs, batch_size=batch_size, shuffle=True, callbacks=[tensorboard])
         score = res.evaluate(x_train, y_train, batch_size=batch_size)
-    res.save('saved_res')
-    del res
-    print("Saved model to disk")
-    # final = res.predict(x_test, batch_size=batch_size)
+        os.remove(del_path)
+        res.save(save_path)
+        print("Saved model to disk")
     return(final)
 
+def test_it(train_vid, current):
+    x_test = get_frames(test_vid)
+    x_test = trans(x_test)
+    res = load_model('/home/whale/Desktop/Rachel/CeVICHE/train/saved_res68.h5')
+    tensorboard = TensorBoard(log_dir="logs/{}".format(time()))
+    test = res.predict(x_test, batch_size=batch_size, callbacks=[tensorboard])
+
 def train_loop():
-    win = np.asarray([])
     for current, train_vid in enumerate(train_names):
         final = run_it(train_vid, current)
-        # win = np.concatenate([final], axis=0)
     return(win, score)
 
 win, score, loop = train_loop()
-# res.save
+
+def test_loop():
+    for current, test_vid in enumerate(test_names):
+        go = test_it(test_vid)
+        return(test, current)
+
+def visualize():
+    show = np.squeeze(x_test, axis=0)
+    print(x_test.shape)
+    pltimshow(show)
