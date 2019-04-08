@@ -99,7 +99,7 @@ def test_it(test_vid, current):
     res = load_model('/home/whale/Desktop/saved_res2.h5')
     predictions = res.predict(x_test)
     print('First Prediction:', predictions[0])
-    score = res.evaluate(x_test, y_test, batch_size=32, verbose=0)
+    score = res.evaluate(x_test, y_test, batch_size=70, verbose=0)
     print('Test accuracy:', score)
     return(x_test)
 
