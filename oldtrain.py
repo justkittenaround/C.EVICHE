@@ -30,19 +30,16 @@ os.environ["CUDA_VISIBLE_DEVICES"]="1";
 
 
 batch_size = 32
-label_file = '/home/whale/Desktop/Rachel/CeVICHE/Time2Seize - Sheet1 (2).csv'
+label_file = '/home/whale/Desktop/Rachel/CeVICHE/Time2Seize - Sheet1 (3).csv'
 
 def get_train():
     os.chdir('/home/whale/Desktop/Rachel/CeVICHE/train')
     train_names = sorted(glob('**/*/*.avi', recursive=True))
     train_labels = np.genfromtxt(label_file, delimiter=',', skip_header=2, usecols=range(0,20))
-    fir  = train_labels[:36, :]
-    las = train_labels[53:, :]
-    train_labels = np.append(fir, las, axis=0)
     print('labels:', train_labels.shape)
     return(train_names, train_labels)
 
-train_names, train_labels = get_train()
+names, labels = get_train()
 
 n = 600
 
@@ -68,26 +65,27 @@ def get_frames(vid):
     return(all_frames, total_frames, ind)
 
 def get_hot(vid, names, labels):
-    get, total_frames, ind = get_frames(vid)
-    row = names.index(vid)
-    seizing_worms = int(labels[row, 13])
-    bubble = int(labels[row, 14])
-    w1 = labels[row, 15]
-    w2 = labels[row, 16]
-    w3 = labels[row, 17]
-    w4 = labels[row, 18]
-    w5 = labels[row, 19]
-    w6 = labels[row, -1]
-    worms = [int(w1), int(w2), int(w3), int(w4), int(w5), int(w6)]
-    hot = np.zeros((7, total_frames))
-    for idx, worm in enumerate(worms):
-        for i in range(bubble, worm):
-            if i  in ind:
-                hot[idx, i] = 1
-                if hot[idx, i] ==1:
-                    hot[idx, 7] = 1
-    hot = hot[:, ind]
-    seize_time_frame = np.sum(hot,axis=0)
+
+get, total_frames, ind = get_frames(vid)
+row = names.index(vid)
+seizing_worms = int(labels[row, 12])
+bubble = int(labels[row, 13])
+w1 = labels[row, 14]
+w2 = labels[row, 15]
+w3 = labels[row, 16]
+w4 = labels[row, 17]
+w5 = labels[row, 18]
+w6 = labels[row, 19]
+worms = [int(w1), int(w2), int(w3), int(w4), int(w5), int(w6)]
+hot = np.zeros((5, total_frames))
+for idx, worm in enumerate(worms):
+    for frame_index in range(bubble, (worm+1)):
+        if frame_index  in ind:
+            hot[idx, frame_index] = 1
+ind = np.sort(ind)
+hot = hot[:, ind]
+seize_time_frame = np.sum(hot,axis=0)
+
     return(get, seize_time_frame)
 
 def trans(x):
@@ -97,16 +95,16 @@ def trans(x):
     return(x)
 
 epochs = 10
-act = 'tanh'
+act = 'softmax'
 opt = 'adam'
-loss = 'mean_squared_error'
+loss = 'categorical_crossentropy'
 filepath = '/home/whale/Desktop/Rachel/CeVICHE/train/checks'
 
 def create_network():
     res = Sequential()
     res.add(ResNet50(weights='imagenet', include_top=False, input_shape=(224,256,3)))
     res.add(keras.layers.GlobalAveragePooling2D(data_format=None))
-    res.add(keras.layers.Dense(1, activation=act))
+    res.add(keras.layers.Dense(7, activation=act))
     res.compile(loss=loss,optimizer=opt,metrics=['acc'])
     return(res)
 
@@ -117,7 +115,7 @@ def run_it(train_vid, current):
         res = create_network()
         tensorboard = TensorBoard(log_dir="logs/{}".format(time()))
         # check = keras.callbacks.ModelCheckpoint(filepath, monitor='val_loss', verbose=0, save_best_only=True, save_weights_only=False, mode='auto', period=1)
-        final = res.fit(x_train, y_train, epochs=epochs, batch_size=batch_size, shuffle=True, callbacks=[tensorboard], validation_split=0.10)
+        final = res.fit(x_train, y_train, epochs=epochs, batch_size=batch_size, shuffle=True, callbacks=[tensorboard], validation_split=0.20)
         res.save('saved_res0.h5')
     else:
         past = current - 1
@@ -126,11 +124,26 @@ def run_it(train_vid, current):
         res = keras.models.load_model(load_path)
         tensorboard = TensorBoard(log_dir="logs/{}".format(time()))
         # check = keras.callbacks.ModelCheckpoint(filepath, monitor='val_loss', verbose=0, save_best_only=True, save_weights_only=False, mode='auto', period=1)
-        final = res.fit(x_train, y_train, epochs=epochs, batch_size=batch_size, shuffle=True, callbacks=[tensorboard], validation_split=0.10)
+        final = res.fit(x_train, y_train, epochs=epochs, batch_size=batch_size, shuffle=True, callbacks=[tensorboard], validation_set=0.20)
         # final = res.fit_generator(aug.flow(x_train, y_train, epochs=epochs, batch_size=batch_size, shuffle=True, callbacks=[tensorboard, check], validation_split=0.33, steps_per_epoch=len(x_train) // batch_size))
         res.save(save_path)
     return(final)
 
+# # FC
+# tf.reset_default_graph()
+# network = input_data(shape=[None, 28, 28], data_augmentation=img_aug)
+# network = fully_connected(network, 2048 , activation='tanh')
+# network = dropout(network, p)
+# network = fully_connected(network, 2048, activation='tanh')
+# network = dropout(network, p)
+# network = fully_connected(network, 2048, activation='tanh')
+# network = dropout(network, p)
+# network = fully_connected(network, 2048, activation='tanh')
+# network = dropout(network, p)
+# network = fully_connected(network, 10, activation='softmax')
+# network = regression(network, optimizer='adam', loss='categorical_crossentropy', learning_rate=0.001)
+# model = tflearn.DNN(network, tensorboard_verbose=2, tensorboard_dir='./Graph')
+# model.fit(X,Y, n_epoch=100, validation_set=0.25, snapshot_step=10, batch_size=32, show_metric=True, run_id=(dataset))
 
 def train_loop():
     for current, train_vid in enumerate(train_names):
