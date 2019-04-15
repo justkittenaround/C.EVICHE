@@ -4,15 +4,18 @@
 #utils
 import torch
 from torchvision import datasets, transforms, models
+from torch import utils
 import numpy as np
 from glob import glob
 import os
 import cv2
 
 #Hyperparameters
-label_file = '/home/blu/C.EVICHE/data/Time2Seize - Sheet1 (1).csv'
-vid_dir = '/home/blu/C.EVICHE/data/train'
-timeDepth = 10000
+# label_file = '/home/blu/C.EVICHE/data/Time2Seize - Sheet1 (1).csv'
+label_file = '/home/whale/Desktop/Rachel/CeVICHE/Time2Seize - Sheet1 (2).csv'
+#vid_dir = '/home/blu/C.EVICHE/data/train'
+vid_dir = '/home/whale/Desktop/Rachel/CeVICHE/train'
+timeDepth = 7000
 channels = 3
 wSize = 224
 hSize = 224
@@ -20,7 +23,7 @@ hSize = 224
 
 
 #Data
-class WormDataset():
+class WormDataset(Dataset):
     "videos of seizing and not seizing worms"
     def __init__(self, label_file, vid_dir, timeDepth, channels, wSize, hSize, transform=None):
         """
@@ -39,6 +42,7 @@ class WormDataset():
         self.channels = channels
         self.wSize = wSize
         self.hSize = hSize
+        self.mean = mean
         self.transform = transform
 
     def __nvids__(self):
@@ -49,10 +53,11 @@ class WormDataset():
         cap = cv2.VideoCapture(vid)
         w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        # print(w,h)
         fps = int(cap.get(5))
         nFrames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT)) #property number 7
-        frames = torch.FloatTensor(self.channels, self.timeDepth, self.wSize, self.hSize)
-        print(vid, 'fps', fps, 'nframes', nFrames, 'width', w, 'height', h)
+        frames = torch.FloatTensor(self.channels, self.timeDepth, h, w)
+        print('check#1:', vid, 'fps', fps, 'nframes', nFrames, 'width', w, 'height', h)
         failedClip = False
         for f in range(self.timeDepth):
              ret, frame = cap.read()
@@ -82,5 +87,10 @@ class WormDataset():
         sample = {'clip': clip, 'label': self.labels[idx][1], 'failedClip': failedClip}
         return sample
 
-data = WormDataset(label_file, vid_dir, timeDepth, channels, wSize, hSize)
-print('check:', len(data), data[0])
+print('check#2:', len(dataset))
+
+dataloader = DataLoader(transformed_dataset, batch_size=4, shuffle=False, num_workers=4)
+
+# worm_data = WormDataset(label_file, vid_dir, timeDepth, channels, wSize, hSize)
+
+print('check#3:', worm_data.shape, worm_data[33])
