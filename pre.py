@@ -4,6 +4,7 @@
 #utils
 import torch
 from torchvision import datasets, transforms, models
+from torch.utils.data import DataLoader
 from torch import utils
 import numpy as np
 from glob import glob
@@ -12,7 +13,7 @@ import cv2
 
 #Hyperparameters
 # label_file = '/home/blu/C.EVICHE/data/Time2Seize - Sheet1 (1).csv'
-label_file = '/home/whale/Desktop/Rachel/CeVICHE/Time2Seize - Sheet1 (2).csv'
+label_file = '/home/whale/Desktop/Rachel/CeVICHE/Time2Seize - Sheet1 (3).csv'
 #vid_dir = '/home/blu/C.EVICHE/data/train'
 vid_dir = '/home/whale/Desktop/Rachel/CeVICHE/train'
 timeDepth = 7000
@@ -23,7 +24,7 @@ hSize = 224
 
 
 #Data
-class WormDataset(Dataset):
+class WormDataset():
     "videos of seizing and not seizing worms"
     def __init__(self, label_file, vid_dir, timeDepth, channels, wSize, hSize, transform=None):
         """
@@ -42,7 +43,7 @@ class WormDataset(Dataset):
         self.channels = channels
         self.wSize = wSize
         self.hSize = hSize
-        self.mean = mean
+        # self.mean = mean
         self.transform = transform
 
     def __nvids__(self):
@@ -71,8 +72,8 @@ class WormDataset(Dataset):
                 print('skipped!')
                 failedClip=True
                 break
-        for c in range(3):
-            frames[c] -= self.mean[c]
+        # for c in range(3):
+        #     frames[c] -= self.mean[c]
         #normalize
         frames /= 255
         return frames, failedClip
@@ -87,10 +88,6 @@ class WormDataset(Dataset):
         sample = {'clip': clip, 'label': self.labels[idx][1], 'failedClip': failedClip}
         return sample
 
-print('check#2:', len(dataset))
+worm_data = WormDataset(label_file, vid_dir, timeDepth, channels, wSize, hSize)
 
-dataloader = DataLoader(transformed_dataset, batch_size=4, shuffle=False, num_workers=4)
-
-# worm_data = WormDataset(label_file, vid_dir, timeDepth, channels, wSize, hSize)
-
-print('check#3:', worm_data.shape, worm_data[33])
+print('check#2:', 'num of vids', len(worm_data), 'sample:', worm_data[33])
