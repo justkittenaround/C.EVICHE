@@ -22,8 +22,8 @@ def get_train():
     print('labels:', train_labels.shape, 'names', len(train_names))
     return(train_names, train_labels)
 names, labels = get_train()
-for vid in names:
 
+for vid in names:
     cap = cv2.VideoCapture(vid)
     total_frames = int(round(cap.get(7)))
     row = (names.index(vid))
@@ -36,22 +36,13 @@ for vid in names:
     w5 = labels[row, 18]
     w6 = labels[row, 19]
     worms = [int(w1), int(w2), int(w3), int(w4), int(w5), int(w6)]
-    check = np.zeros((5, (total_frames+1)))
+    check = np.zeros((6, (total_frames+1)))
     for idx, worm in enumerate(worms):
         if worm == 0:
             break
         for frame_index in range(bubble, worm):
             # print(frame_index)
             check[idx, frame_index] = 1
-
-            # if idx > check.shape[0]:
-            #     print('idx bigger than check array')
-            # if frame_index > check.shape[1]:
-            #     print('frame idx bigger than check array')
-            # if idx == check.shape[0]:
-            #     print('idx same as check array')
-            # if frame_index == check.shape[1]:
-            #     print('frame idx same as check array')
     worms_count = np.sum(check,axis=0)
     for idx, num in enumerate(worms_count):
         frames = np.zeros([1,224,256,3])
