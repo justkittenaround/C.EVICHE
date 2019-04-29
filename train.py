@@ -1,141 +1,279 @@
-# tensorboard --logdir=//home/whale/Desktop/Rachel/CeVICHE/train/logs
-import cv2
-import h5py
+#CeVICHE train
+#torch implementation of Resnet--> stacked bLSTM
+
+#utils
+from __future__ import print_function
+from __future__ import division
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import torchvision
+from torchvision import datasets, models, transforms
+print("PyTorch Version: ",torch.__version__)
+print("Torchvision Version: ",torchvision.__version__)
+
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 import os
-from glob import glob
-import tensorflow as tf
-import keras
-from keras.models import load_model
-from keras.utils import multi_gpu_model
-from keras.applications.resnet50 import ResNet50
-from keras.models import Sequential
-from keras.layers import Flatten
-from keras.layers import LSTM
-from keras.layers import TimeDistributed
-from keras.layers import Embedding
-from keras.layers import ConvLSTM2D
-from keras.layers import Dense
-from keras.layers import Activation
-from keras import losses
-from keras import optimizers
-from keras import backend as K
-import skimage
-from keras.callbacks import TensorBoard
-from time import time
-os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID";
-os.environ["CUDA_VISIBLE_DEVICES"]="1";
+import copy
 
+#Hyperparameters
+#   to the ImageFolder structure
+data_dir = '/home/blu/C.EVICHE/data/train'
+#path to save models
+PATH = '/home/blu/C.EVICHE/saved_models'
+# Models to choose from [resnet, alexnet, vgg, squeezenet, densenet, inception]
+model_name = 'resnet'
+# Number of classes in the dataset
+num_classes = 2
+# Batch size for training (change depending on how much memory you have)
+batch_size = 8
+# Number of epochs to train for
+num_epochs = 15
+# Flag for feature extracting. When False, we finetune the whole model,
+#   when True we only update the reshaped layer params
+feature_extract = False
 
+##MODEL TRAINING AND VALIDATION PREP############################################
+def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, is_inception=False):
+    since = time.time()
 
-batch_size = 32
-label_file = '/home/whale/Desktop/Rachel/CeVICHE/Time2Seize - Sheet1 (2).csv'
+    val_acc_history = []
 
-def get_train():
-    os.chdir('/home/whale/Desktop/Rachel/CeVICHE/train')
-    train_names = sorted(glob('**/*/*.avi', recursive=True))
-    train_labels = np.genfromtxt(label_file, delimiter=',', skip_header=2, usecols=range(0,20))
-    fir  = train_labels[:36, :]
-    las = train_labels[53:, :]
-    train_labels = np.append(fir, las, axis=0)
-    print('labels:', train_labels.shape)
-    return(train_names, train_labels)
+    best_model_wts = copy.deepcopy(model.state_dict())
+    best_acc = 0.0
 
-train_names, train_labels = get_train()
+    for epoch in range(num_epochs):
+        print('Epoch {}/{}'.format(epoch, num_epochs - 1))
+        print('-' * 10)
 
-n = 600
+        # Each epoch has a training and validation phase
+        for phase in ['train', 'val']:
+            if phase == 'train':
+                model.train()  # Set model to training mode
+            else:
+                model.eval()   # Set model to evaluate mode
 
-def get_frames(vid):
-    cap = cv2.VideoCapture(vid)
-    fps = int(cap.get(5))
-    total_frames = int(round(cap.get(7)))
-    print(total_frames, vid)
-    all_frames = np.zeros([n,224,256,3])
-    count = 0
-    ind = np.random.choice(total_frames, n, replace=False)
-    while(True):
-         ret, frame = cap.read()
-         frame = skimage.transform.resize(frame, (224,256,3))
-         print(frame.shape)
-         if count in ind:
-            all_frames[count, ...] = frame
-         count += 1
-         if cv2.waitKey(1):
-            break
-    cap.release()
-    cv2.destroyAllWindows()
-    return(all_frames, total_frames, ind)
+            running_loss = 0.0
+            running_corrects = 0
 
-def get_hot(vid, names, labels):
-    get, total_frames, ind = get_frames(vid)
-    row = names.index(vid)
-    seizing_worms = int(labels[row, 13])
-    bubble = int(labels[row, 14])
-    w1 = labels[row, 15]
-    w2 = labels[row, 16]
-    w3 = labels[row, 17]
-    w4 = labels[row, 18]
-    w5 = labels[row, 19]
-    w6 = labels[row, -1]
-    worms = [int(w1), int(w2), int(w3), int(w4), int(w5), int(w6)]
-    hot = np.zeros((7, total_frames))
-    for idx, worm in enumerate(worms):
-        for i in range(bubble, worm):
-            if i  in ind:
-                hot[idx, i] = 1
-                if hot[idx, i] ==1:
-                    hot[idx, 7] = 1
-    hot = hot[:, ind]
-    seize_time_frame = np.sum(hot,axis=0)
-    return(get, seize_time_frame)
+            # Iterate over data.
+            for inputs, labels in dataloaders[phase]:
+                inputs = inputs.to(device)
+                labels = labels.to(device)
 
-def trans(x):
-    x_mean = np.mean(x, 0)
-    x_mean = x_mean.astype('uint8', copy=False)
-    x -= x_mean
-    return(x)
+                # zero the parameter gradients
+                optimizer.zero_grad()
 
-epochs = 10
-act = 'tanh'
-opt = 'adam'
-loss = 'mean_squared_error'
-filepath = '/home/whale/Desktop/Rachel/CeVICHE/train/checks'
+                # forward
+                # track history if only in train
+                with torch.set_grad_enabled(phase == 'train'):
+                    # Get model outputs and calculate loss
+                    # Special case for inception because in training it has an auxiliary output. In train
+                    #   mode we calculate the loss by summing the final output and the auxiliary output
+                    #   but in testing we only consider the final output.
+                    if is_inception and phase == 'train':
+                        # From https://discuss.pytorch.org/t/how-to-optimize-inception-model-with-auxiliary-classifiers/7958
+                        outputs, aux_outputs = model(inputs)
+                        loss1 = criterion(outputs, labels)
+                        loss2 = criterion(aux_outputs, labels)
+                        loss = loss1 + 0.4*loss2
+                    else:
+                        outputs = model(inputs)
+                        loss = criterion(outputs, labels)
 
-def create_network():
-    res = Sequential()
-    res.add(ResNet50(weights='imagenet', include_top=False, input_shape=(224,256,3)))
-    res.add(keras.layers.GlobalAveragePooling2D(data_format=None))
-    res.add(keras.layers.Dense(1, activation=act))
-    res.compile(loss=loss,optimizer=opt,metrics=['acc'])
-    return(res)
+                    _, preds = torch.max(outputs, 1)
 
-def run_it(train_vid, current):
-    x_train, y_train = get_hot(train_vid, train_names, train_labels)
-    x_train = trans(x_train)
-    if current == 0:
-        res = create_network()
-        tensorboard = TensorBoard(log_dir="logs/{}".format(time()))
-        # check = keras.callbacks.ModelCheckpoint(filepath, monitor='val_loss', verbose=0, save_best_only=True, save_weights_only=False, mode='auto', period=1)
-        final = res.fit(x_train, y_train, epochs=epochs, batch_size=batch_size, shuffle=True, callbacks=[tensorboard], validation_split=0.10)
-        res.save('saved_res0.h5')
+                    # backward + optimize only if in training phase
+                    if phase == 'train':
+                        loss.backward()
+                        optimizer.step()
+
+                # statistics
+                running_loss += loss.item() * inputs.size(0)
+                running_corrects += torch.sum(preds == labels.data)
+
+            epoch_loss = running_loss / len(dataloaders[phase].dataset)
+            epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
+
+            print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
+
+            # deep copy the model
+            if phase == 'val' and epoch_acc > best_acc:
+                best_acc = epoch_acc
+                best_model_wts = copy.deepcopy(model.state_dict())
+            if phase == 'val':
+                val_acc_history.append(epoch_acc)
+
+        print()
+
+    time_elapsed = time.time() - since
+    print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+    print('Best val Acc: {:4f}'.format(best_acc))
+
+    # load best model weights
+    model.load_state_dict(best_model_wts)
+    return model, val_acc_history
+
+##SET MODEL PARAMETERS WITH GRAD################################################
+def set_parameter_requires_grad(model, feature_extracting):
+    if feature_extracting:
+        for param in model.parameters():
+            param.requires_grad = False
+
+## INITIALIZE AND RESHAPE MODEL################################################
+def initialize_model(model_name, num_classes, feature_extract, use_pretrained=True):
+    # Initialize these variables which will be set in this if statement. Each of these
+    #   variables is model specific.
+    model_ft = None
+    input_size = 0
+
+    if model_name == "resnet":
+        """ Resnet18
+        """
+        model_ft = models.resnet18(pretrained=use_pretrained)
+        set_parameter_requires_grad(model_ft, feature_extract)
+        num_ftrs = model_ft.fc.in_features
+        model_ft.fc = nn.Linear(num_ftrs, num_classes)
+        input_size = 224
+
+    elif model_name == "alexnet":
+        """ Alexnet
+        """
+        model_ft = models.alexnet(pretrained=use_pretrained)
+        set_parameter_requires_grad(model_ft, feature_extract)
+        num_ftrs = model_ft.classifier[6].in_features
+        model_ft.classifier[6] = nn.Linear(num_ftrs,num_classes)
+        input_size = 224
+
+    elif model_name == "vgg":
+        """ VGG11_bn
+        """
+        model_ft = models.vgg11_bn(pretrained=use_pretrained)
+        set_parameter_requires_grad(model_ft, feature_extract)
+        num_ftrs = model_ft.classifier[6].in_features
+        model_ft.classifier[6] = nn.Linear(num_ftrs,num_classes)
+        input_size = 224
+
+    elif model_name == "squeezenet":
+        """ Squeezenet
+        """
+        model_ft = models.squeezenet1_0(pretrained=use_pretrained)
+        set_parameter_requires_grad(model_ft, feature_extract)
+        model_ft.classifier[1] = nn.Conv2d(512, num_classes, kernel_size=(1,1), stride=(1,1))
+        model_ft.num_classes = num_classes
+        input_size = 224
+
+    elif model_name == "densenet":
+        """ Densenet
+        """
+        model_ft = models.densenet121(pretrained=use_pretrained)
+        set_parameter_requires_grad(model_ft, feature_extract)
+        num_ftrs = model_ft.classifier.in_features
+        model_ft.classifier = nn.Linear(num_ftrs, num_classes)
+        input_size = 224
+
+    elif model_name == "inception":
+        """ Inception v3
+        Be careful, expects (299,299) sized images and has auxiliary output
+        """
+        model_ft = models.inception_v3(pretrained=use_pretrained)
+        set_parameter_requires_grad(model_ft, feature_extract)
+        # Handle the auxilary net
+        num_ftrs = model_ft.AuxLogits.fc.in_features
+        model_ft.AuxLogits.fc = nn.Linear(num_ftrs, num_classes)
+        # Handle the primary net
+        num_ftrs = model_ft.fc.in_features
+        model_ft.fc = nn.Linear(num_ftrs,num_classes)
+        input_size = 299
+
     else:
-        past = current - 1
-        load_path = '/home/whale/Desktop/Rachel/CeVICHE/train/models/saved_res' +  str(past) + '.h5'
-        save_path = '/home/whale/Desktop/Rachel/CeVICHE/train/models/saved_res' + str(current) + '.h5'
-        res = keras.models.load_model(load_path)
-        tensorboard = TensorBoard(log_dir="logs/{}".format(time()))
-        # check = keras.callbacks.ModelCheckpoint(filepath, monitor='val_loss', verbose=0, save_best_only=True, save_weights_only=False, mode='auto', period=1)
-        final = res.fit(x_train, y_train, epochs=epochs, batch_size=batch_size, shuffle=True, callbacks=[tensorboard], validation_split=0.10)
-        # final = res.fit_generator(aug.flow(x_train, y_train, epochs=epochs, batch_size=batch_size, shuffle=True, callbacks=[tensorboard, check], validation_split=0.33, steps_per_epoch=len(x_train) // batch_size))
-        res.save(save_path)
-    return(final)
+        print("Invalid model name, exiting...")
+        exit()
 
+    return model_ft, input_size
 
-def train_loop():
-    for current, train_vid in enumerate(train_names):
-        go = run_it(train_vid, current)
-        print(go)
-        return(go)
+# Initialize the model for this run
+model_ft, input_size = initialize_model(model_name, num_classes, feature_extract, use_pretrained=True)
 
-training = train_loop()
+# Print the model we just instantiated
+print(model_ft)
+
+##DATA LOADING#######################################################
+# Just normalization for validation
+data_transforms = {
+    'train': transforms.Compose([
+        transforms.RandomResizedCrop(input_size),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ]),
+    'val': transforms.Compose([
+        transforms.Resize(input_size),
+        transforms.CenterCrop(input_size),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ]),
+}
+print("Initializing Datasets and Dataloaders...")
+# Create training and validation datasets
+image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x]) for x in ['train', 'val']}
+# Create training and validation dataloaders
+dataloaders_dict = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True, num_workers=4) for x in ['train', 'val']}
+# Detect if we have a GPU available
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+##OPTIMIZER#############################################################
+# Send the model to GPU
+model_ft = model_ft.to(device)
+
+# Gather the parameters to be optimized/updated in this run. If we are
+#  finetuning we will be updating all parameters. However, if we are
+#  doing feature extract method, we will only update the parameters
+#  that we have just initialized, i.e. the parameters with requires_grad
+#  is True.
+params_to_update = model_ft.parameters()
+print("Params to learn:")
+if feature_extract:
+    params_to_update = []
+    for name,param in model_ft.named_parameters():
+        if param.requires_grad == True:
+            params_to_update.append(param)
+            print("\t",name)
+else:
+    for name,param in model_ft.named_parameters():
+        if param.requires_grad == True:
+            print("\t",name)
+
+# Observe that all parameters are being optimized
+optimizer_ft = optim.SGD(params_to_update, lr=0.001, momentum=0.9)
+
+##TensorBoard##################################################################
+        # 1. Log scalar values (scalar summary)
+        info = { 'loss': loss.item(), 'accuracy': accuracy.item() }
+
+        for tag, value in info.items():
+            logger.scalar_summary(tag, value, step+1)
+
+        # 2. Log values and gradients of the parameters (histogram summary)
+        for tag, value in model.named_parameters():
+            tag = tag.replace('.', '/')
+            logger.histo_summary(tag, value.data.cpu().numpy(), step+1)
+            logger.histo_summary(tag+'/grad', value.grad.data.cpu().numpy(), step+1)
+
+        # 3. Log training images (image summary)
+        info = { 'images': images.view(-1, 28, 28)[:10].cpu().numpy() }
+
+        for tag, images in info.items():
+            logger.image_summary(tag, images, step+1)
+            
+##RUN TRAINING AND VALIDATION#############################################
+# Setup the loss fxn
+criterion = nn.CrossEntropyLoss()
+
+# Train and evaluate
+model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft, num_epochs=num_epochs, is_inception=(model_name=="inception"))
+
+##SAVE MODEL
+torch.save(model.state_dict(), PATH)
