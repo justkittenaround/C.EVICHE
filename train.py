@@ -20,22 +20,23 @@ import copy
 import visdom
 vis = visdom.Visdom()
 
+
 #Hyperparameters
-#####to the ImageFolder structure
-# data_dir = '/home/whale/Desktop/Rachel/CeVICHE/conv_ceviche_data'
-data_dir = '/home/blu/C.EVICHE/data/conv_ceviche_data/'
-####path to save models
-# PATH = '/home/whale/Desktop/Rachel/CeVICHE/models'
-PATH = '/home/blu/C.EVICHE/data/conv_ceviche_data/models/'
-####Models to choose from [resnet, alexnet, vgg, squeezenet, densenet, inception]
-model_name = 'inception'
-###Number of classes in the dataset
+#   to the ImageFolder structure
+data_dir = '/home/whale/Desktop/Rachel/CeVICHE/conv_ceviche_data'
+#data_dir = '/home/whale/hymenoptera_data'
+#path to save models
+PATH = '/home/whale/Desktop/Rachel/CeVICHE/models'
+#PATH = '/home/whale/hymenoptera_data/models'
+# Models to choose from [resnet, alexnet, vgg, squeezenet, densenet, inception]
+model_name = 'vgg'
+# Number of classes in the dataset
 num_classes = 7
-####Batch size for training (change depending on how much memory you have)
-batch_size = 8
+# Batch size for training (change depending on how much memory you have)
+batch_size = 16
 # Number of epochs to train for
-num_epochs = 25
-####Flag for feature extracting. When False, we finetune the whole model,
+num_epochs = 100
+# Flag for feature extracting. When False, we finetune the whole model,
 #   when True we only update the reshaped layer params
 feature_extract = False
 #test all the models --> set to True
@@ -49,13 +50,17 @@ if loop == True:
         model_name = model_type
 
         ##MODEL TRAINING AND VALIDATION PREP############################################
-        def train_model(model, dataloaders, criterion, optimizer, num_epochs=num_epochs, is_inception=False):
+        def train_model(reporter, model, dataloaders, criterion, optimizer, num_epochs=num_epochs, is_inception=False):
             since = time.time()
 
             val_acc_history = []
+            val_loss = []
+
             train_acc = []
             train_loss = []
-            val_loss = []
+
+            worms_seizing = []
+
 
             best_model_wts = copy.deepcopy(model.state_dict())
             best_acc = 0.0
@@ -90,6 +95,7 @@ if loop == True:
                             #   mode we calculate the loss by summing the final output and the auxiliary output
                             #   but in testing we only consider the final output.
                             if is_inception and phase == 'train':
+
                                 # From https://discuss.pytorch.org/t/how-to-optimize-inception-model-with-auxiliary-classifiers/7958
                                 outputs, aux_outputs = model(inputs)
                                 loss1 = criterion(outputs, labels)
@@ -99,7 +105,9 @@ if loop == True:
                                 outputs = model(inputs)
                                 loss = criterion(outputs, labels)
 
+
                             _, preds = torch.max(outputs, 1)
+
 
                             # backward + optimize only if in training phase
                             if phase == 'train':
@@ -113,11 +121,13 @@ if loop == True:
                     epoch_loss = running_loss / len(dataloaders[phase].dataset)
                     epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
 
+
                     if phase == 'train':
                         train_acc.append(epoch_acc.cpu().numpy())
                         vis.line(train_acc, win='train_acc', opts=dict(title= model_name + '-train_acc'))
                         train_loss.append(epoch_loss)
                         vis.line(train_loss, win='train_loss', opts=dict(title= model_name + '-train_loss'))
+
 
                     print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
 
@@ -126,11 +136,13 @@ if loop == True:
                         best_acc = epoch_acc
                         best_model_wts = copy.deepcopy(model.state_dict())
 
+
                     if phase == 'val':
                         val_acc_history.append(epoch_acc.cpu().numpy())
                         vis.line(val_acc_history, win='val_acc', opts=dict(title= model_name + '-val_acc'))
                         val_loss.append(epoch_loss)
                         vis.line(val_loss, win='val_loss', opts=dict(title= model_name + '-val_loss'))
+
 
 
                 print()
@@ -305,8 +317,8 @@ if loop == True:
         print('model bests:', model_best)
         ##SAVE MODEL
         save_name = PATH + model_name + '.pt'
-        torch.save(model_ft.state_dict(), save_name)
-
+        torch.save(model_ft, save_name)
+#___________________________________________________________________________________________________________________
 else:
     def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, is_inception=False):
         since = time.time()
@@ -315,6 +327,7 @@ else:
         train_acc = []
         train_loss = []
         val_loss = []
+
 
         best_model_wts = copy.deepcopy(model.state_dict())
         best_acc = 0.0
@@ -360,6 +373,8 @@ else:
 
                         _, preds = torch.max(outputs, 1)
 
+
+
                         # backward + optimize only if in training phase
                         if phase == 'train':
                             loss.backward()
@@ -372,11 +387,13 @@ else:
                 epoch_loss = running_loss / len(dataloaders[phase].dataset)
                 epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
 
+
                 if phase == 'train':
                     train_acc.append(epoch_acc.cpu().numpy())
                     vis.line(train_acc, win='train_acc', opts=dict(title= model_name + '-train_acc'))
                     train_loss.append(epoch_loss)
                     vis.line(train_loss, win='train_loss', opts=dict(title= model_name + '-train_loss'))
+
 
                 print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
 
@@ -390,6 +407,7 @@ else:
                     vis.line(val_acc_history, win='val_acc', opts=dict(title= model_name + '-val_acc'))
                     val_loss.append(epoch_loss)
                     vis.line(val_loss, win='val_loss', opts=dict(title= model_name + '-val_loss'))
+
 
             print()
 
@@ -542,4 +560,4 @@ else:
     model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft, num_epochs=num_epochs, is_inception=(model_name=="inception"))
     ##SAVE MODEL
     save_name = PATH + model_name + '.pt'
-    torch.save(model_ft.state_dict(), save_name)
+    torch.save(model_ft, save_name)

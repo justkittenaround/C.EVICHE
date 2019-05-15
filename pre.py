@@ -15,7 +15,7 @@ import cv2
 # label_file = '/home/blu/C.EVICHE/data/Time2Seize - Sheet1 (1).csv'
 label_file = '/home/whale/Desktop/Rachel/CeVICHE/Time2Seize - Sheet1 (3).csv'
 #vid_dir = '/home/blu/C.EVICHE/data/train'
-vid_dir = '/home/whale/Desktop/Rachel/CeVICHE/train'
+data_dir = '/home/whale/Desktop/Rachel/CeVICHE/train'
 timeDepth = 7000
 channels = 3
 wSize = 224
@@ -79,7 +79,7 @@ class WormDataset():
         return frames, failedClip
 
     def __getitem__(self, idx):
-        search_path = os.path.join(self.vid_dir, '**/*/*.avi')
+        search_path = os.path.join(self.data_dir, '**/*/*.avi')
         vid_names = sorted(glob(search_path, recursive=True))
         vid = vid_names[idx]
         clip, failedClip = self.readvids(vid)
@@ -88,6 +88,34 @@ class WormDataset():
         sample = {'clip': clip, 'label': self.labels[idx][1], 'failedClip': failedClip}
         return sample
 
-worm_data = WormDataset(label_file, vid_dir, timeDepth, channels, wSize, hSize)
+data_transforms = {
+    'train': transforms.Compose([
+        transforms.RandomResizedCrop(224),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ]),
+    'val': transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ]),
+}
+
+
+image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x),
+                                          data_transforms[x])
+                  for x in ['train', 'val']}
+dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=4,
+                                             shuffle=True, num_workers=4)
+              for x in ['train', 'val']}
+dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
+class_names = image_datasets['train'].classes
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+##run
+worm_data = WormDataset(label_file, data_dir, timeDepth, channels, wSize, hSize)
 
 print('check#2:', 'num of vids', len(worm_data), 'sample:', worm_data[33])

@@ -1,120 +1,56 @@
-
-import cv2
-import h5py
+from torchvision import datasets, models, transforms
+import torch
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 import os
-from glob import glob
-import tensorflow as tf
-import keras
-from keras.models import load_model
-from keras.utils import multi_gpu_model
-from keras.applications.resnet50 import ResNet50
-from keras.models import Sequential
-from keras.layers import Flatten
-from keras.layers import LSTM
-from keras.layers import TimeDistributed
-from keras.layers import Embedding
-from keras.layers import ConvLSTM2D
-from keras.layers import Dense
-from keras.layers import Activation
-from keras import losses
-from keras import optimizers
-from keras import backend as K
-import skimage
-from keras.callbacks import TensorBoard
-from time import time
-os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID";
-os.environ["CUDA_VISIBLE_DEVICES"]="1";
+import copy
+import visdom
+vis = visdom.Visdom()
 
+PATH = '/home/whale/Desktop/Rachel/CeVICHE/models/modelsvgg.pt'
+data_dir = '/home/whale/Desktop/Rachel/CeVICHE/conv_ceviche_data'
+batch_size = 1
 
+#load the saved model
+test_model = models.load(PATH)
+test_model.eval()
 
-batch_size = 32
-label_file = '/home/whale/Desktop/Rachel/CeVICHE/Time2Seize - Sheet1 (2).csv'
+#data
+data_transforms = {
+    'train': transforms.Compose([
+        transforms.RandomResizedCrop(input_size),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ]),
+    'val': transforms.Compose([
+        transforms.Resize(input_size),
+        transforms.CenterCrop(input_size),
+        transforms.ToTensor(),
+        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+    ]),
+}
+print("Initializing Datasets and Dataloaders...")
 
-def get_test():
-    os.chdir('/home/whale/Desktop/Rachel/CeVICHE/test')
-    test_names = sorted(glob('**/*/*.avi', recursive=True))
-    test_labels = np.genfromtxt(label_file, delimiter=',', skip_header=2, usecols=range(0,20), missing_values = ' ', filling_values = 0, deletechars='nan')
-    test_labels = test_labels[35:53, :]
-    return(test_names, test_labels)
+image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x]) for x in ['train', 'val']}
 
-test_names, test_labels = get_test()
+dataloaders_dict = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=False, num_workers=4) for x in ['train', 'val']}
 
-n = 300
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-def get_frames(vid):
-    cap = cv2.VideoCapture(vid)
-    fps = int(cap.get(5))
-    total_frames = int(round(cap.get(7)))
-    print(total_frames, vid)
-    all_frames = np.zeros([n,224,256,3])
-    count = 0
-    ind = np.random.choice(total_frames, n, replace=False)
-    while(True):
-         ret, frame = cap.read()
-         frame = skimage.transform.resize(frame, (224,256,3))
-         print(frame.shape)
-         if count in ind:
-            all_frames[count, ...] = frame
-         count += 1
-         if cv2.waitKey(1):
-            break
-    cap.release()
-    cv2.destroyAllWindows()
-    return(all_frames, total_frames, ind)
+#run on GPU
+test_model = test_model.to(device)
 
-def get_hot(vid, names, labels):
-    get, total_frames, ind = get_frames(vid)
-    row = names.index(vid)
-    seizing_worms = int(labels[row, 13])
-    bubble = int(labels[row, 14])
-    w1 = labels[row, 15]
-    w2 = labels[row, 16]
-    w3 = labels[row, 17]
-    w4 = labels[row, 18]
-    w5 = labels[row, 19]
-    w6 = labels[row, -1]
-    worms = [int(w1), int(w2), int(w3), int(w4), int(w5), int(w6)]
-    hot = np.zeros((7, total_frames))
-    for idx, worm in enumerate(worms):
-        for i in range(bubble, worm):
-            if i  in ind:
-                hot[idx, i] = 1
-                if hot[idx, i] ==1:
-                    hot[idx, 7] = 1
-    hot = hot[:, ind]
-    seize_time_frame = np.sum(hot,axis=0)
-    return(get, seize_time_frame)
-
-def trans(x):
-    x_mean = np.mean(x, 0)
-    x_mean = x_mean.astype('uint8', copy=False)
-    x -= x_mean
-    return(x)
-
-def test_it(test_vid, current):
-    x_test, y_test = get_hot(test_vid, test_names, test_labels)
-    x_test = trans(x_test)
-    res = load_model('/home/whale/Desktop/saved_res2.h5')
-    predictions = res.predict(x_test)
-    print('First Prediction:', predictions[0])
-    score = res.evaluate(x_test, y_test, batch_size=70, verbose=0)
-    print('Test accuracy:', score)
-    return(x_test)
-
-# def visualize(current, x_test):
-#     print(x_test.shape)
-#     show = x_test[100, :, :, :]
-#     plt.imshow(show)
-#     plt.show()
-#     plt.savefig(current, show)
-
-def test_loop():
-    for current, test_vid in enumerate(test_names):
-        go = test_it(test_vid, current)
-        # a = visualize(current, go)
-        print(go)
-        return(go)
-
-testing = test_loop()
+#run data through and print stuff
+worms_seizing_pred = []
+worms_seizing_act = []
+for inputs, labels in dataloaders[phase]:
+    inputs = inputs.to(device)
+    labels = labels.to(device)
+    outputs = model(inputs)
+    _, preds = torch.max(outputs, 1)
+    worms_seizing_pred.append(preds)
+    worms_seizing_act.append(labels.data)
+    vis.line(worms_seizing_pred, win='worms_seizing', opts=dict(title= model_name + '-predictions'))
+    vis.line(worms_seizing_act, win='worms_seizing', opts=dict(title= model_name + '-predictions'))

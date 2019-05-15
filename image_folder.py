@@ -5,11 +5,11 @@ import matplotlib.pyplot as plt
 import os
 from glob import glob
 import skimage
-import imageio
+from scipy.misc import imsave, imresize
 
 #vid = '/home/whale/Desktop/Rachel/CeVICHE/train/11-14 WORMS/017'
 label_file = '/home/whale/Desktop/Rachel/CeVICHE/Time2Seize - Sheet1 (3).csv'
-# label_file = '/home/blu/C.EVICHE/Time2Seize - Sheet1 (3).csv'
+#label_file = '/home/blu/C.EVICHE/Time2Seize - Sheet1 (3).csv'
 vid_folder = '/home/whale/Desktop/Rachel/CeVICHE/train'
 #vid_folder = '/home/blu/C.EVICHE/data/train'
 #save_path = '/home/blu/C.EVICHE/data/conv_ceviche_data/train/'
@@ -22,6 +22,8 @@ def get_train():
     print('labels:', train_labels.shape, 'names', len(train_names))
     return(train_names, train_labels)
 names, labels = get_train()
+# names = names[20:]
+# labels = labels[20:]
 
 for vid in names:
     cap = cv2.VideoCapture(vid)
@@ -45,40 +47,30 @@ for vid in names:
             check[idx, frame_index] = 1
     worms_count = np.sum(check,axis=0)
     for idx, num in enumerate(worms_count):
-        frames = np.zeros([1,224,256,3])
         if idx >= 0 & idx <= total_frames:
             cap.set(cv2.CAP_PROP_POS_FRAMES,idx)
-        else:
-            print('idx not in total_frames')
-            break
-        while(True):
-             ret, frame = cap.read()
-             if type(frame) != 'numpy.ndarray':
-                 break
-             frame = skimage.transform.resize(frame, (224,256,3))
-             frames[0, ...] = frame
-             if cv2.waitKey(1):
-                 break
-             cap.release()
-             cv2.destroyAllWindows()
-        frames = np.squeeze(frames)
-        # print('frame_shape:', frames.shape)
-        r = str(np.random.randint(99999999))
-        # print(idx, num)
-        if int(num) == 0:
-            imageio.imwrite(save_path + '0w/'+ r + '.jpg', frames.astype(np.uint8))
-        if int(num) == 1:
-            imageio.imwrite(save_path + '1w/'+ r + '.jpg', frames.astype(np.uint8))
-        if int(num) == 2:
-            imageio.imwrite(save_path + '2w/'+ r + '.jpg', frames.astype(np.uint8))
-        if int(num) == 3:
-            imageio.imwrite(save_path + '3w/'+ r + '.jpg', frames.astype(np.uint8))
-        if int(num) == 4:
-            imageio.imwrite(save_path + '4w/'+ r + '.jpg', frames.astype(np.uint8))
-        if int(num) == 5:
-            imageio.imwrite(save_path + '5w/'+ r + '.jpg', frames.astype(np.uint8))
-        if int(num) == 6:
-            imageio.imwrite(save_path + '6w/'+ r + '.jpg', frames.astype(np.uint8))
+            ret, frame = cap.read()
+            # print(idx, type(frame))
+            if type(frame) is not type(worms_count):
+                print('skipped', idx)
+                break
+            # print(idx, num, frame.shape[2])
+            frame = imresize(frame, (224,224,3))
+            r = str(np.random.randint(99999999))
+            if int(num) == 0:
+                imsave(save_path + '0w/'+ r + '.jpg', frame)
+            if int(num) == 1:
+                imsave(save_path + '1w/'+ r + '.jpg', frame)
+            if int(num) == 2:
+                imsave(save_path + '2w/'+ r + '.jpg', frame)
+            if int(num) == 3:
+                imsave(save_path + '3w/'+ r + '.jpg', frame)
+            if int(num) == 4:
+                imsave(save_path + '4w/'+ r + '.jpg', frame)
+            if int(num) == 5:
+                imsave(save_path + '5w/'+ r + '.jpg', frame)
+            if int(num) == 6:
+                imsave(save_path + '6w/'+ r + '.jpg', frame)
     print('finished with vid:', vid)
 
 print('meowzers')
