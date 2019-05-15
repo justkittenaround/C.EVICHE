@@ -48,7 +48,7 @@ worms_seizing_act = []
 for inputs, labels in dataloaders[phase]:
     inputs = inputs.to(device)
     labels = labels.to(device)
-    outputs = model(inputs)
+    outputs = test_model(inputs)
     _, preds = torch.max(outputs, 1)
     worms_seizing_pred.append(preds)
     worms_seizing_act.append(labels.data)

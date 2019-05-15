@@ -56,7 +56,7 @@ for vid in names:
                 break
             # print(idx, num, frame.shape[2])
             frame = imresize(frame, (224,224,3))
-            r = str(np.random.randint(99999999))
+            r = str(idx)
             if int(num) == 0:
                 imsave(save_path + '0w/'+ r + '.jpg', frame)
             if int(num) == 1:
