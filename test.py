@@ -9,21 +9,15 @@ import visdom
 vis = visdom.Visdom()
 
 PATH = '/home/whale/Desktop/Rachel/CeVICHE/models/modelsvgg.pt'
-data_dir = '/home/whale/Desktop/Rachel/CeVICHE/conv_ceviche_data'
+data_dir = '/home/whale/Desktop/Rachel/CeVICHE/Data'
 batch_size = 1
+num_classes = 7
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+input_size = 224
+phase = 'test'
 
-#load the saved model
-test_model = models.load(PATH)
-test_model.eval()
-
-#data
+##DATASETS AND DATALOADERS################################################
 data_transforms = {
-    'train': transforms.Compose([
-        transforms.RandomResizedCrop(input_size),
-        transforms.RandomHorizontalFlip(),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ]),
     'val': transforms.Compose([
         transforms.Resize(input_size),
         transforms.CenterCrop(input_size),
@@ -32,25 +26,46 @@ data_transforms = {
     ]),
 }
 print("Initializing Datasets and Dataloaders...")
+image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x]) for x in [phase]}
+dataloaders_dict = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=False, num_workers=4) for x in [phase]}
 
-image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x]) for x in ['train', 'val']}
+##TESTING PROCEDURE AND PRINTS################################################
+def testing_model(model, dataloaders):
+    since = time.time()
 
-dataloaders_dict = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=False, num_workers=4) for x in ['train', 'val']}
+    worms_seizing_pred = [np.array([7])]
+    worms_seizing_act = [np.array([7])]
+    testing_acc = []
+    confusion = np.zeros([8, 8])
+    running_corrects = 0
 
-device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    for inputs, labels in dataloaders[phase]:
+        inputs = inputs.to(device)
+        labels = labels.to(device)
+        outputs = test_model(inputs)
+        _, preds = torch.max(outputs, 1)
+        running_corrects += torch.sum(preds == labels.data)
+        worms_seizing_pred.append(preds.cpu().numpy())
+        worms_seizing_act.append(labels.data.cpu().numpy())
+        vis.line(worms_seizing_pred, win='worms_seizing_predict', opts=dict(title= 'trainedVGG-Predictions'))
+        vis.line(worms_seizing_act, win='worms_seizing_target', opts=dict(title= 'trainedVGG-Target'))
+        confusion[worms_seizing_pred[-1], worms_seizing_act[-1]] += 1
+        vis.heatmap(confusion, win='confusion_matrix', opts=dict(ylabel= 'predicted', xlabel= 'target', colormap= 'Electric'))
+    testing_acc = (running_corrects/len(labels.data))
+    time_elapsed = time.time() - since
+    print('Testing complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
+    print('Testing_acc: {:4f}', testing_acc)
+    return test_model, testing_acc
 
-#run on GPU
-test_model = test_model.to(device)
+## INITIALIZE AND RESHAPE MODEL################################################
+def initialize_model(PATH):
+    test_model= torch.load(PATH)
+    test_model.eval()
+    return test_model
 
-#run data through and print stuff
-worms_seizing_pred = []
-worms_seizing_act = []
-for inputs, labels in dataloaders[phase]:
-    inputs = inputs.to(device)
-    labels = labels.to(device)
-    outputs = test_model(inputs)
-    _, preds = torch.max(outputs, 1)
-    worms_seizing_pred.append(preds)
-    worms_seizing_act.append(labels.data)
-    vis.line(worms_seizing_pred, win='worms_seizing', opts=dict(title= model_name + '-predictions'))
-    vis.line(worms_seizing_act, win='worms_seizing', opts=dict(title= model_name + '-predictions'))
+# Initialize the test_modelfor this run
+test_model = initialize_model(PATH)
+#Send the model to GPU
+test_model= test_model.to(device)
+#Run test model
+test_model, testing_acc = testing_model(testing_model, dataloaders_dict)
