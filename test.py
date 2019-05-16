@@ -9,12 +9,12 @@ import visdom
 vis = visdom.Visdom()
 
 PATH = '/home/whale/Desktop/Rachel/CeVICHE/models/modelsvgg.pt'
-data_dir = '/home/whale/Desktop/Rachel/CeVICHE/Data'
+data_dir = '/home/whale/Desktop/Rachel/CeVICHE/Data/'
 batch_size = 1
 num_classes = 7
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 input_size = 224
-phase = 'test'
+phase = 'val'
 
 ##DATASETS AND DATALOADERS################################################
 data_transforms = {
