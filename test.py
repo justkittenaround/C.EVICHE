@@ -8,17 +8,17 @@ import copy
 import visdom
 vis = visdom.Visdom()
 
-PATH = '/home/whale/Desktop/Rachel/CeVICHE/models/modelsvgg.pt'
-data_dir = '/home/whale/Desktop/Rachel/CeVICHE/conv_ceviche_data'
+PATH = '/home/blu/C.EVICHE/data/conv_ceviche_data/models/modelsvgg.pt'
+data_dir = '/home/blu/C.EVICHE/data/conv_ceviche_data/'
 batch_size = 1
 num_classes = 7
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 input_size = 224
-phase = 'train'
+phase = 'test'
 
 ##DATASETS AND DATALOADERS################################################
 data_transforms = {
-    'train': transforms.Compose([
+    phase: transforms.Compose([
         transforms.Resize(input_size),
         transforms.CenterCrop(input_size),
         transforms.ToTensor(),
@@ -52,8 +52,8 @@ def testing_model(model, dataloaders):
         worms_seizing_act.append(labels.data.cpu().numpy())
         seizing_preds = np.asarray(worms_seizing_pred)
         print(count, len(seizing_preds))
-        if len(seizing_preds) == count and :
-            max = np.amax(seizing_preds[count:])
+        if len(seizing_preds) == count and len(seizing_preds) != 2:
+            max = np.amax(seizing_preds[(count-5):])
             worms_seizing_smoothed.append(max)
             count += 5
         vis.line(worms_seizing_smoothed, win='worms_seizing_smoothed', opts=dict(title= 'smoothed_predictions'))
@@ -72,6 +72,7 @@ def initialize_model(PATH):
     test_model= torch.load(PATH)
     test_model.eval()
     return test_model
+
 
 # Initialize the test_modelfor this run
 test_model = initialize_model(PATH)
