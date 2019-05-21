@@ -7,13 +7,13 @@ from glob import glob
 import skimage
 from scipy.misc import imsave, imresize
 
-#vid = '/home/whale/Desktop/Rachel/CeVICHE/train/11-14 WORMS/017'
+
 label_file = '/home/whale/Desktop/Rachel/CeVICHE/Time2Seize - Sheet1 (3).csv'
+vid_folder = '/home/whale/Desktop/Rachel/CeVICHE/Data/train'
+save_path = '/home/whale/Desktop/Rachel/CeVICHE/conv_ceviche_data/train/'
 #label_file = '/home/blu/C.EVICHE/Time2Seize - Sheet1 (3).csv'
-vid_folder = '/home/whale/Desktop/Rachel/CeVICHE/train'
 #vid_folder = '/home/blu/C.EVICHE/data/train'
 #save_path = '/home/blu/C.EVICHE/data/conv_ceviche_data/train/'
-save_path = '/home/whale/Desktop/Rachel/CeVICHE/conv_ceviche_data/train/'
 
 def get_train():
     os.chdir(vid_folder)
@@ -25,6 +25,7 @@ names, labels = get_train()
 # names = names[20:]
 # labels = labels[20:]
 
+##for training##################################################################
 for vid in names:
     cap = cv2.VideoCapture(vid)
     total_frames = int(round(cap.get(7)))
@@ -57,6 +58,7 @@ for vid in names:
             # print(idx, num, frame.shape[2])
             frame = imresize(frame, (224,224,3))
             r = str(idx)
+            imsave(save_path + r + '.jpg', frame)
             if int(num) == 0:
                 imsave(save_path + '0w/'+ r + '.jpg', frame)
             if int(num) == 1:
@@ -73,4 +75,17 @@ for vid in names:
                 imsave(save_path + '6w/'+ r + '.jpg', frame)
     print('finished with vid:', vid)
 
-print('meowzers')
+
+##for testing##################################################################
+save_path = '/home/whale/Desktop/Rachel/CeVICHE/conv_ceviche_data/test/test/'
+vid = names[39]
+for idx in range(0, total_frames):
+    cap.set(cv2.CAP_PROP_POS_FRAMES,idx)
+    ret, frame = cap.read()
+    if type(frame) is not type(worms_count):
+        print('skipped', idx)
+        break
+    frame = imresize(frame, (224,224,3))
+    r = str(idx)
+    imsave(save_path + r + '.jpg', frame)
+print('done')
