@@ -78,14 +78,11 @@ class Dataset():
         files.sort()
         file_to_idx = {files[i]: i for i in range(len(files))}
         return files, file_to_idx
-################################################################################
     def __getitem__(self, index):
-        vid = self.samples[index]
-        sample = vid[index])
+        img, frame_pos, vid_num = self.samples[index]
         if self.transform is not None:
-            sample = self.transform(sample)
-        return sample
-###############################################################################
+            sample = self.transform(img)
+        return sample, frame_pos, vid_num
     def __len__(self):
         return len(self.samples)
 
