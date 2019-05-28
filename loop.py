@@ -14,10 +14,10 @@ from PIL import Image as pil
 import visdom
 vis = visdom.Visdom()
 
-PATH = '/home/blu/C.EVICHE/saved_models/modelsvgg (1).pt'
-root = '/home/blu/C.EVICHE/data/test/'
-#PATH = '/home/whale/Desktop/Rachel/CeVICHE/models/modelsvgg.pt'
-#root = '/home/whale/Desktop/Rachel/CeVICHE/Data/test/'
+#PATH = '/home/blu/C.EVICHE/saved_models/modelsvgg (1).pt'
+#root = '/home/blu/C.EVICHE/data/test/'
+PATH = '/home/whale/Desktop/Rachel/CeVICHE/models/modelsvgg.pt'
+root = '/home/whale/Desktop/Rachel/CeVICHE/Data/test/'
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 input_size = 224
 thresh = 15
@@ -58,33 +58,37 @@ for target in sorted(files):
         continue
     cap = cv2.VideoCapture(d)
     total_frames = int(round(cap.get(7)))
+    fps = int(round(cap.get(cv2.CAP_PROP_FPS)))
     print('Total frames in ', target, ' is: ', total_frames)
-    bin = np.array([3, total_frames])
     worms_seizing_pred = []
     worms_seizing_smoothed = []
     worms_seizing_smoothed_1 = []
     worms_seizing_smoothed_2 = []
     worms_seizing_smoothed_3 = []
     init = 1
-    count_1 = thresh + init
-    count_2 = thresh + init
+    count_1 = thresh
+    count_2 = thresh
     idx = 0
     t = 0
     one = 0
     two = 0
     thre = 0
-    a = np.asarray([0])
-    b = np.asarray([0])
-    c = np.asarray([0])
+    tik_1 = 0
+    tik_2 = 0
+    tik_3 = 0
+    f = 0
+    a = np.zeros([total_frames])
+    b = np.zeros([total_frames])
+    c = np.zeros([total_frames])
+    p = np.asarray([0])
     print("Running Predictions...")
     since = time.time()
-    for n in range(0, total_frames):
+    for t in range(0, total_frames):
         s = time.time()
-        t = n
-        cap.set(cv2.CAP_PROP_POS_FRAMES,n)
+        cap.set(cv2.CAP_PROP_POS_FRAMES,t)
         ret, frame = cap.read()
-        if type(frame) is not type(bin):
-            print('skipped', n)
+        if type(frame) is not type(a):
+            print('skipped', t)
             break
         frame = pil.fromarray(frame)
         frame = data_transforms(frame)
@@ -95,52 +99,70 @@ for target in sorted(files):
         preds = predicts.cpu().numpy()
         seizing_preds = np.asarray(worms_seizing_pred)
         worms_seizing_pred.append(preds)
-        vis.line(worms_seizing_pred, win='worms_seizing_predict', opts=dict(title= 'trainedVGG-Predictions'))
+        vis.line(worms_seizing_pred, win='worms_seizing_predict', opts=dict(title= 'trainedVGG_Predictions_' + str(round(fps/fps)) + 'sec'))
+
         if len(seizing_preds) == count_1:
-            tally_1 = np.bincount(np.squeeze(seizing_preds[(count_1-thresh):]))
-            leng_1 = len(seizing_preds[(count_1-thresh):])
-            max_1 = np.argmax(tally_1)
+            leng_1 = seizing_preds[(count_1-thresh):]
+            max_1 = np.argmax(np.bincount(np.squeeze(leng_1)))
             worms_seizing_smoothed_1.append(max_1)
             count_1 += thresh
-            vis.line(worms_seizing_smoothed_1, win='worms_seizing_smoothed_1', opts=dict(title= 'smoothed_predictions_block'))
-            for n in range(0,16):
-                token = [worms_seizing_smoothed_1[one]]
-                a = np.append([a], [token])
+            vis.line(worms_seizing_smoothed_1, win='worms_seizing_smoothed_1', opts=dict(title= 'smoothed_' + str(round(fps/len(leng_1))) + 'sec_block'))
+            for n in range(0,(len(leng_1)+1)):
+                a[tik_1] = worms_seizing_smoothed_1[one]
+                tik_1 += 1
             one += 1
+
         if len(seizing_preds) == count_2:
-            tally_2 = np.bincount(np.squeeze(seizing_preds[idx:]))
-            leng_2 = len(seizing_preds[idx:])
-            max_2 = np.argmax(tally_2)
+            leng_2 = seizing_preds[idx:]
+            max_2 = np.argmax(np.bincount(np.squeeze(leng_2)))
             worms_seizing_smoothed_2.append(max_2)
-            vis.line(worms_seizing_smoothed_2, win='worms_seizing_smoothed_2', opts=dict(title= 'smoothed_predictions_after'))
+            vis.line(worms_seizing_smoothed_2, win='worms_seizing_smoothed_2', opts=dict(title= 'smoothed_' + str(round(fps/len(leng_2))) + 'sec_slide'))
             idx += 1
             count_2 += 1
-            for n in range(0,17):
-                token = [worms_seizing_smoothed_2[two]]
-                b = np.append([b], [token])
+            if tik_2 <= len(leng_2):
+                for n in range(0,(len(leng_2)+1)):
+                    b[tik_2] = worms_seizing_smoothed_2[two]
+                    tik_2 += 1
+            else:
+                b[tik_2] = worms_seizing_smoothed_2[two]
+                tik_2 += 1
             two += 1
+
         if idx >= (thresh*surround):
-            position = idx - (thresh*surround)
-            tally_3 = np.bincount(np.squeeze(seizing_preds[position:]))
-            leng_3 = len(seizing_preds[position:])
-            max_3 = np.argmax(tally_3)
+            num = thresh*surround
+            position = idx - (num)
+            leng_3 = seizing_preds[position:]
+            max_3 = np.argmax(np.bincount(np.squeeze(leng_3)))
             worms_seizing_smoothed_3.append(max_3)
-            vis.line(worms_seizing_smoothed_3, win='worms_seizing_smoothed_3', opts=dict(title= 'smoothed_predictions_surround'))
-            for n in range(0,106):
-                token = [worms_seizing_smoothed_3[thre]]
-                c = np.append([c],[token])
+            vis.line(worms_seizing_smoothed_3, win='worms_seizing_smoothed_3', opts=dict(title= 'smoothed_' + str(round(len(leng_3)/fps)) + 'sec_surround'))
+            if tik_3 <= len(leng_3):
+                for n in range(0,(len(leng_3)+1)):
+                    c[tik_3] = worms_seizing_smoothed_3[thre]
+                    tik_3 += 1
+            else:
+                c[tik_3] = worms_seizing_smoothed_3[thre]
+                tik_3 += 1
             thre += 1
-    print('n', n, 'a.shape=', a.shape, 'b_shape=', b.shape, 'c_shape=', c.shape)
-    #         for n in range(0, total_frames):
-    #             if n < len(a):
-    #                 bin = np.append([a[n]], [b[n]], axis=0)
-    #                 bin = np.append(bin, [c[n]])
-    #                 tally = np.bincount(np.squeeze(bin))
-    #                 max = np.argmax(tally)
-    #                 worms_seizing_smoothed.append(max)
-    #                 vis.line(worms_seizing_smoothed, win='worms_seizing_smoothed', opts=dict(title= 'smoothed_predictions_combined'))
-    #     p = time.time() - s
-    #     progress(n, total_frames, status=('predicting ' + str(n)))
-    #     time.sleep(p)
-    # time_elapsed = time.time() - since
-    # print('Testing completed in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60), 'for ' + str(target))
+
+
+        while f < one and thre > 1:
+        # while thre > 1 and f < len(worms_seizing_smoothed_1):
+            bin = np.append(worms_seizing_pred[f], [a[f]], axis=0)
+            bin = np.append(bin, [b[f]])
+            bin = np.append(bin, [c[f]])
+            print(len(worms_seizing_smoothed_1), f, bin)
+            max = np.argmax(np.bincount(np.squeeze(bin.astype(np.int64))))
+            worms_seizing_smoothed.append(max)
+            vis.line(worms_seizing_smoothed, win='worms_seizing_smoothed', opts=dict(title= 'smoothed_predictions_combined_' + str(round(fps/fps)) + 'sec'))
+            f += 1
+
+        # p = time.time() - s
+        # progress(t, total_frames, status=('predicting ' + str(t)))
+        # time.sleep(p)
+
+    print('lengths of time', leng_1, leng_2, leng_3)
+    print('smoothed1', len(worms_seizing_smoothed_1), 'smoothed2', len(worms_seizing_smoothed_2), 'smoothed3', len(worms_seizing_smoothed_3))
+    print('n', 'a.shape=', a.shape, 'b_shape=', b.shape, 'c_shape=', c.shape)
+
+    time_elapsed = time.time() - since
+    print('Testing completed in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60), 'for ' + str(target))
