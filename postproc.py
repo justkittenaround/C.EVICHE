@@ -171,9 +171,9 @@ for target in folder:
     total_seizing_preds = len(seizing_preds)
     total_intermediate = len(inter)
     total_smoothed = len(smoothed)
-    avg_seizing_preds = (sum(seizing_preds)/total_seizing_preds)/total_worms_seizing
-    avg_intermediate = (sum(inter)/total_intermediate)/total_worms_seizing
-    avg_smoothed = (sum(smoothed)/total_smoothed)/total_worms_seizing
+    avg_seizing_preds = (sum(seizing_preds)/(total_seizing_preds/total_frames)/total_worms_seizing
+    avg_intermediate = (sum(inter)/(total_intermediate/total_frames)/total_worms_seizing
+    avg_smoothed = (sum(smoothed)/(total_smoothed/total_frames)/total_worms_seizing
     avg = (avg_seizing_preds+avg_intermediate+avg_smoothed)/3
 
     print('REPORT: ')
