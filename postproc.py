@@ -57,7 +57,8 @@ data_transforms = transforms.Compose([transforms.Resize(input_size),transforms.C
 root = os.path.expanduser(root)
 files = [d for d in os.listdir(root) if os.path.isfile(os.path.join(root, d))]
 files.sort()
-for target in sorted(files):
+folder = sorted(files)
+for target in folder:
     d = os.path.join(root, target)
     if not os.path.isfile(d):
         continue
@@ -68,9 +69,11 @@ for target in sorted(files):
     seizing_preds = []
     inter = []
     smoothed =[0]
+    frames_bin= []
     t = 0
-    idx = 1
-    bubble = 0
+    idx = 0
+    id = 1
+    frame_bubble = []
     check_type = np.array([1])
     print("Running Predictions...")
     since = time.time()
@@ -98,7 +101,7 @@ for target in sorted(files):
                 length = len(mode[:idx])
                 max_15 = np.argmax(np.bincount(np.squeeze(mode[int(idx-length):int(idx+half+1)])))
             return max_15
-        def correct_90(idx):
+        def correct_90(idx, mode):
             if len(mode[:idx]) > half_num:
                 max_90 = np.argmax(np.bincount(np.squeeze(mode[int(idx-half_num):int(idx+half_num+1)])))
             else:
@@ -113,42 +116,72 @@ for target in sorted(files):
                 max_bub = np.argmax(np.bincount(np.squeeze(inter[int(idx-length):int(idx+bubble_check+1)])))
             return max_bub
 #------------------------------------insert if >/< but also == to below------------------------------------------------
-        if len(seizing_preds) > bubble_check:
-            for idx in range(idx,bubble_check):
-                inter.append(correct_15(idx, seizing_preds))
-                vis.line(inter, win='inter_preds', opts=dict(title= 'Intermediate_Predictions'))
-            if len(inter) < bubble_check:
-                smoothed.append(inter[int(idx-2)])
-            if len(inter) > bubble_check and bubble(idx) < 0:
-                if seizing_preds[idx] > seizing_preds[int(idx-1)]:
-                    smoothed.append(correct_90(idx, seizing_preds))
-                    # print('1')
-                elif seizing_preds[idx] < seizing_preds[int(idx-1)]:
-                    smoothed.append(correct_15(idx, seizing_preds))
-                    # print('2')
-                elif seizing_preds[idx] > inter[int(idx-2)]:
-                    smoothed.append(correct_90(idx, inter))
-                    # print('3')
-                else:
-                    smoothed.append(inter[int(idx-1)])
-                vis.line(smoothed, win='smoothed_preds', opts=dict(title= 'Smoothed_Predictions'))
-            elif len(inter) > bubble_check and bubble(idx) > 0:
-                bubble = 1
-                if seizing_preds[idx] > seizing_preds[int(idx-1)]:
-                    smoothed.append(inter[int(idx-2)])
+        if len(seizing_preds) < (thresh+half):
+            frames_bin.append(t)
+        if len(seizing_preds) > (thresh+half):
+            inter.append(correct_15(idx, seizing_preds))
+            idx+=1
+            vis.line(inter, win='inter_preds', opts=dict(title= 'Intermediate_Predictions'))
+        if len(inter) > bubble_check:
+            bub = bubble(id)
+            if bub >= 1:
+                frame_bubble.append(t)
+                if inter[id] > inter[int(id-1)]:
+                    smoothed.append(inter[int(id-1)])
                     # print('4')
-                elif seizing_preds[idx] < seizing_preds[int(idx-1)]:
-                    smoothed.append(inter[int(idx-2)])
+                elif inter[id] == inter[int(id-1)]:
+                    smoothed.append(inter[id])
                     # print('5')
-                elif seizing_preds[idx] > inter[int(idx-2)]:
-                    smoothed.append(inter[int(idx-2)])
+                elif inter[id] < inter[int(id-1)]:
+                    smoothed.append(correct_90(id, smoothed))
                     # print('6')
-                else:
-                    smoothed.append(inter[int(idx-2)])
+                elif inter[id] > smoothed[int(id-1)]:
+                    smoothed.append(smoothed[int(id-1)])
                 vis.line(smoothed, win='smoothed_preds', opts=dict(title= 'Smoothed_Predictions'))
-            idx +=1
+            else:
+                # print(bub)
+                if inter[id] > inter[int(id-1)]:
+                    smoothed.append(correct_90(id, inter))
+                    # print(4, correct_90(id, inter))
+                elif inter[id] != smoothed[int(id-1)]:
+                    if inter[id] > smoothed[int(id-1)]:
+                        smoothed.append(correct_90(id, inter))
+                        # print(5.5, correct_90(idx, inter), inter[id])
+                    elif inter[id] < smoothed[int(id-1)]:
+                        smoothed.append(smoothed[int(id-1)])
+                    # print(5, correct_90(id, inter), inter[id])
+                elif inter[id] < inter[int(id-1)]:
+                    smoothed.append(correct_90(id, inter))
+                    # print(6, correct_90(id, inter))
+                elif inter[id] == smoothed[int(id-1)]:
+                    smoothed.append(inter[id])
+                    # print(7, inter[id])
+                vis.line(smoothed, win='smoothed_preds', opts=dict(title= 'Smoothed_Predictions'))
+            id += 1
+            frames_bin.append(t)
         p = time.time() - s
         progress(t, total_frames, status=('predicting ' + str(t)))
         time.sleep(p)
+        total_seizing_preds = len(seizing_preds)
+        total_intermediate = len(inter)
+        total_smoothed = len(smoothed)
     time_elapsed = time.time() - since
-    print('Testing completed in {:.0idx}m {:.0idx}s'.idxormat(time_elapsed // 60, time_elapsed % 60), 'idxor ' + str(target))
+    print('Testing completed in {:.0idx}m {:.0idx}s'.format(time_elapsed // 60, time_elapsed % 60), 'for ' + str(target))
+    total_worms_seizing = max(smoothed)
+    total_seizing_preds = len(seizing_preds)
+    total_intermediate = len(inter)
+    total_smoothed = len(smoothed)
+    avg_seizing_preds = (sum(seizing_preds)/total_seizing_preds)/total_worms_seizing
+    avg_intermediate = (sum(inter)/total_intermediate)/total_worms_seizing
+    avg_smoothed = (sum(smoothed)/total_smoothed)/total_worms_seizing
+    avg = (avg_seizing_preds+avg_intermediate+avg_smoothed)/3
+
+    print('REPORT: ')
+    print('Video Analyzed: ', target)
+    print('Total Worms Seizing: ', total_worms_seizing)
+    print('Average time Seizing: ', avg)
+
+    if target != folder[-1]:
+        print('Initializing Next Video...')
+    else:
+        print('Analysis Complete!')
