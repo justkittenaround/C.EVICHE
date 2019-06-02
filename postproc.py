@@ -166,20 +166,20 @@ for target in folder:
         total_intermediate = len(inter)
         total_smoothed = len(smoothed)
     time_elapsed = time.time() - since
-    print('Testing completed in {:.0idx}m {:.0idx}s'.format(time_elapsed // 60, time_elapsed % 60), 'for ' + str(target))
+    print('Testing completed in {:.0f}m {:.0f}'.format(time_elapsed // 60, time_elapsed % 60), 'for ' + str(target))
     total_worms_seizing = max(smoothed)
     total_seizing_preds = len(seizing_preds)
     total_intermediate = len(inter)
     total_smoothed = len(smoothed)
-    avg_seizing_preds = (sum(seizing_preds)/(total_seizing_preds/total_frames)/total_worms_seizing
-    avg_intermediate = (sum(inter)/(total_intermediate/total_frames)/total_worms_seizing
-    avg_smoothed = (sum(smoothed)/(total_smoothed/total_frames)/total_worms_seizing
-    avg = (avg_seizing_preds+avg_intermediate+avg_smoothed)/3
+    avg_seizing_preds = (sum(seizing_preds)/(total_seizing_preds/total_frames))/total_worms_seizing
+    avg_intermediate = (sum(inter)/(total_intermediate/total_frames))/total_worms_seizing
+    avg_smoothed = (sum(smoothed)/(total_smoothed/total_frames))/total_worms_seizing
+    avg = ((avg_seizing_preds+avg_intermediate+avg_smoothed)/3)/30
 
     print('REPORT: ')
     print('Video Analyzed: ', target)
     print('Total Worms Seizing: ', total_worms_seizing)
-    print('Average time Seizing: ', avg)
+    print('Average time Seizing: ', avg + ' seconds')
 
     if target != folder[-1]:
         print('Initializing Next Video...')
