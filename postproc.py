@@ -13,25 +13,28 @@ import cv2
 from PIL import Image as pil
 import visdom
 vis = visdom.Visdom(port=8090)
+
 # PATH = '/home/blu/C.EVICHE/saved_models/modelsvgg (1).pt'
 # root = '/home/blu/C.EVICHE/data/test/'
 PATH = '/home/whale/Desktop/Rachel/CeVICHE/models/modelsvgg.pt'
 root = '/home/whale/Desktop/Rachel/CeVICHE/Data/test/'
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 input_size = 224
 thresh = 15
 surround = 6
 bubble_check = 120
 if thresh % 2 != 0:
     thresh += 1
-
 num = thresh*surround
 half = thresh/2
 half_num = num/2
+
 ##initialize_model#############################################################
 test_model= torch.load(PATH)
 test_model.eval()
 test_model= test_model.to(device)
+
 ##multiprocessing##############################################################
 # if __name__ == '__main__':
 #     nump_processes = 4
@@ -43,6 +46,7 @@ test_model= test_model.to(device)
 #         processes.append(p)
 #     for p in processes:
 #         p.join()
+
 ##progress bar##################################################################
 def progress(count, total, status=''):
     bar_len = 40
@@ -51,6 +55,7 @@ def progress(count, total, status=''):
     bar = '=' * filled_len + '-' * (bar_len - filled_len)
     sys.stdout.write('[%s] %s%s ...%s\r' % (bar, percents, '%', status))
     sys.stdout.flush()
+
 ##TESTING PROCEDURE AND PRINTS#################################################
 data_transforms = transforms.Compose([transforms.Resize(input_size),transforms.CenterCrop(input_size),transforms.ToTensor(),transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 #images = ['pil_image', 'frame_position', 'video_number']
@@ -115,7 +120,7 @@ for target in folder:
                 length = len(inter[:idx])
                 max_bub = np.argmax(np.bincount(np.squeeze(inter[int(idx-length):int(idx+bubble_check+1)])))
             return max_bub
-#------------------------------------insert if >/< but also == to below------------------------------------------------
+
         if len(seizing_preds) < (thresh+half):
             frames_bin.append(t)
         if len(seizing_preds) > (thresh+half):
@@ -162,9 +167,6 @@ for target in folder:
         p = time.time() - s
         progress(t, total_frames, status=('predicting ' + str(t)))
         time.sleep(p)
-        total_seizing_preds = len(seizing_preds)
-        total_intermediate = len(inter)
-        total_smoothed = len(smoothed)
     time_elapsed = time.time() - since
     print('Testing completed in {:.0f}m {:.0f}'.format(time_elapsed // 60, time_elapsed % 60), 'for ' + str(target))
     total_worms_seizing = max(smoothed)
