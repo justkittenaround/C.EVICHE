@@ -7,28 +7,48 @@ from glob import glob
 import skimage
 from scipy.misc import imsave, imresize
 
+label_file = '/home/whale/Desktop/Rachel/CeVICHE/Time2Seize - Sheet1 (3) - Time2Seize - Sheet1 (3).csv'
+vid_folder = '/home/whale/Desktop/Rachel/CeVICHE/Data/train/'
+save_path = '/home/whale/Desktop/Rachel/CeVICHE/conv_ceviche_data/Evaluate/'
 
-label_file = '/home/whale/Desktop/Rachel/CeVICHE/Time2Seize - Sheet1 (3).csv'
-vid_folder = '/home/whale/Desktop/Rachel/CeVICHE/Data/train'
-save_path = '/home/whale/Desktop/Rachel/CeVICHE/conv_ceviche_data/train/'
 #label_file = '/home/blu/C.EVICHE/Time2Seize - Sheet1 (3).csv'
 #vid_folder = '/home/blu/C.EVICHE/data/train'
 #save_path = '/home/blu/C.EVICHE/data/conv_ceviche_data/train/'
 
-def get_train():
+def get_data():
     os.chdir(vid_folder)
     train_names = sorted(glob('**/*/*.avi', recursive=True))
+    vid_names = []
+    for name in train_names:
+        a = name.split('/')
+        name = a[-1]
+        vid_names.append(name)
     train_labels = np.genfromtxt(label_file, delimiter=',', skip_header=2, usecols=range(0,20))
     print('labels:', train_labels.shape, 'names', len(train_names))
-    return(train_names, train_labels)
-names, labels = get_train()
-# names = names[20:]
-# labels = labels[20:]
+    return(train_names, vid_names, train_labels)
+
+names, vid_names, labels = get_data()
 
 ##for training##################################################################
+id = 0
 for vid in names:
     cap = cv2.VideoCapture(vid)
     total_frames = int(round(cap.get(7)))
+    video = vid_names[id]
+    folders = os.listdir(save_path)
+    if video not in folders:
+        final = (save_path + str(video) + '.' + str(total_frames) + '/')
+        os.mkdir(final)
+        print('made new folders in ', save_path)
+    else:
+        print('good')
+    folders2 = os.listdir(final)
+    for bit in ['0w', '1w', '2w', '3w', '4w', '5w', '6w']:
+        if bit not in folders2:
+            os.mkdir(final + bit)
+        else:
+            print('good')
+    id += 1
     row = (names.index(vid))
     seizing_worms = int(labels[row, 12])
     bubble = int(labels[row, 13])
@@ -43,10 +63,13 @@ for vid in names:
     for idx, worm in enumerate(worms):
         if worm == 0:
             break
+        elif worm >= total_frames:
+            worm = (total_frames - 1)
         for frame_index in range(bubble, worm):
             # print(frame_index)
             check[idx, frame_index] = 1
     worms_count = np.sum(check,axis=0)
+    # print(worms_count)
     for idx, num in enumerate(worms_count):
         if idx >= 0 & idx <= total_frames:
             cap.set(cv2.CAP_PROP_POS_FRAMES,idx)
@@ -58,34 +81,35 @@ for vid in names:
             # print(idx, num, frame.shape[2])
             frame = imresize(frame, (224,224,3))
             r = str(idx)
-            imsave(save_path + r + '.jpg', frame)
             if int(num) == 0:
-                imsave(save_path + '0w/'+ r + '.jpg', frame)
+                imsave(final + '0w/'+ r + '.jpg', frame)
             if int(num) == 1:
-                imsave(save_path + '1w/'+ r + '.jpg', frame)
+                imsave(final + '1w/'+ r + '.jpg', frame)
             if int(num) == 2:
-                imsave(save_path + '2w/'+ r + '.jpg', frame)
+                imsave(final + '2w/'+ r + '.jpg', frame)
             if int(num) == 3:
-                imsave(save_path + '3w/'+ r + '.jpg', frame)
+                imsave(final + '3w/'+ r + '.jpg', frame)
             if int(num) == 4:
-                imsave(save_path + '4w/'+ r + '.jpg', frame)
+                imsave(final + '4w/'+ r + '.jpg', frame)
             if int(num) == 5:
-                imsave(save_path + '5w/'+ r + '.jpg', frame)
+                imsave(final + '5w/'+ r + '.jpg', frame)
             if int(num) == 6:
-                imsave(save_path + '6w/'+ r + '.jpg', frame)
-    print('finished with vid:', vid)
+                imsave(final + '6w/'+ r + '.jpg', frame)
+
+    print('finished with vid:', video)
 
 
 ##for testing##################################################################
-save_path = '/home/whale/Desktop/Rachel/CeVICHE/conv_ceviche_data/test/test/'
-vid = names[39]
-for idx in range(0, total_frames):
-    cap.set(cv2.CAP_PROP_POS_FRAMES,idx)
-    ret, frame = cap.read()
-    if type(frame) is not type(worms_count):
-        print('skipped', idx)
-        break
-    frame = imresize(frame, (224,224,3))
-    r = str(idx)
-    imsave(save_path + r + '.jpg', frame)
-print('done')
+# vid_folder = '/home/whale/Desktop/Rachel/CeVICHE/Data/train/'
+# save_path = '/home/whale/Desktop/Rachel/CeVICHE/conv_ceviche_data/Evaluate/'
+# vid = names[38]
+# for idx in range(0, total_frames):
+#     cap.set(cv2.CAP_PROP_POS_FRAMES,idx)
+#     ret, frame = cap.read()
+#     if type(frame) is not type(worms_count):
+#         print('skipped', idx)
+#         break
+#     frame = imresize(frame, (224,224,3))
+#     r = str(idx)
+#     imsave(save_path + r + '.jpg', frame)
+# print('done')
