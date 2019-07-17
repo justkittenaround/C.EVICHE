@@ -1,7 +1,3 @@
-#CeVICHE train
-#torch implementation of Resnet--> stacked bLSTM
-
-#utils
 from __future__ import print_function
 from __future__ import division
 import torch
@@ -40,7 +36,28 @@ num_epochs = 100
 #   when True we only update the reshaped layer params
 feature_extract = False
 #test all the models --> set to True
-loop = False
+loop = True
+
+
+
+
+class DataParallelModel(nn.Module):
+
+    def __init__(self):
+        super().__init__()
+        self.block1 = nn.Linear(10, 20)
+
+        # wrap block2 in DataParallel
+        self.block2 = nn.Linear(20, 20)
+        self.block2 = nn.DataParallel(self.block2)
+
+        self.block3 = nn.Linear(20, 20)
+
+    def forward(self, x):
+        x = self.block1(x)
+        x = self.block2(x)
+        x = self.block3(x)
+        return x
 
 ##TEST ALL IN A LOOP############################################################
 if loop == True:
@@ -50,7 +67,7 @@ if loop == True:
         model_name = model_type
 
         ##MODEL TRAINING AND VALIDATION PREP############################################
-        def train_model(reporter, model, dataloaders, criterion, optimizer, num_epochs=num_epochs, is_inception=False):
+        def train_model(model, dataloaders, criterion, optimizer, num_epochs=num_epochs, is_inception=False):
             since = time.time()
 
             val_acc_history = []
@@ -265,6 +282,10 @@ if loop == True:
 
         ##OPTIMIZER#############################################################
         # Send the model to GPU
+        if torch.cuda.device_count() > 1:
+              print("Let's use", torch.cuda.device_count(), "GPUs!")
+              # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+              model_ft = nn.DataParallel(model_ft)
         model_ft = model_ft.to(device)
 
         # Gather the parameters to be optimized/updated in this run. If we are
@@ -529,6 +550,10 @@ else:
 
     ##OPTIMIZER#############################################################
     # Send the model to GPU
+    if torch.cuda.device_count() > 1:
+          print("Let's use", torch.cuda.device_count(), "GPUs!")
+          # dim = 0 [30, xxx] -> [10, ...], [10, ...], [10, ...] on 3 GPUs
+          model_ft = nn.DataParallel(model_ft)
     model_ft = model_ft.to(device)
 
     # Gather the parameters to be optimized/updated in this run. If we are
